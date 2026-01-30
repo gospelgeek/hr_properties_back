@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Property, PropertyLaw, Enser, EnserInventory, PropertyDetails, PropertyMedia
+from apps.maintenance.models import Repair
 
 
 class PropertyDetailsSerializer(serializers.ModelSerializer):
@@ -102,11 +103,19 @@ class EnserInventoryDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'enser', 'url_media']
 
 
+class RepairSerializer(serializers.ModelSerializer):
+    """Serializer para mostrar reparaciones"""
+    class Meta:
+        model = Repair
+        fields = ['id', 'cost', 'date', 'observation', 'description']
+
+
 class PropertyDetailSerializer(serializers.ModelSerializer):
-    """Serializer completo con detalles, media e inventario de enseres"""
+    """Serializer completo con detalles, media, inventario de enseres y reparaciones"""
     details = PropertyDetailsSerializer(required=False)
     media = PropertyMediaSerializer(many=True, read_only=True)
     inventory = EnserInventoryDetailSerializer(many=True, read_only=True)
+    repairs = RepairSerializer(many=True, read_only=True)
     
     class Meta:
         model = Property
@@ -123,7 +132,8 @@ class PropertyDetailSerializer(serializers.ModelSerializer):
             'updated_at',
             'details',
             'media',
-            'inventory'
+            'inventory',
+            'repairs'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 

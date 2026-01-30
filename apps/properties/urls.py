@@ -16,3 +16,14 @@ router.register(r'enser-inventory', EnserInventoryViewSet, basename='enser-inven
 urlpatterns = [
     path('', include(router.urls)),
 ]
+
+'''
+POST /api/properties/ - Crear propiedad
+GET /api/properties/ - Listar (solo activas)
+GET /api/properties/{id}/ - Obtener por ID (con enseres incluidos)
+PUT/PATCH /api/properties/{id}/ - Actualizar
+DELETE /api/properties/{id}/ - Soft delete (no borra físicamente)
+POST /api/properties/{id}/restore/ - Restaurar eliminada
+GET /api/properties/deleted/ - Ver propiedades eliminadas
+POST /api/properties/{id}/upload_media/ - Subir archivos
+'''
