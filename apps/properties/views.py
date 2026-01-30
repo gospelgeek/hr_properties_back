@@ -1,15 +1,31 @@
 from django.shortcuts import render
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Property, PropertyLaw, Enser, EnserInventory, PropertyDetails, PropertyMedia
 from .serializers import (
-    PropertySerializer, PropertyLawSerializer, EnserSerializer, EnserInventorySerializer, PropertyDetailsSerializer, PropertyMediaSerializer
+    PropertySerializer, PropertyDetailSerializer, PropertyLawSerializer, EnserSerializer, 
+    EnserInventorySerializer, PropertyDetailsSerializer, PropertyMediaSerializer, PropertyMediaListSerializer
 )
 
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = Property.objects.filter(is_deleted__isnull=True)
     serializer_class = PropertySerializer
+    
+    def get_serializer_class(self):
+        """Usar PropertyDetailSerializer para ver detalle, PropertySerializer para listar/crear"""
+        if self.action == 'retrieve':
+            return PropertyDetailSerializer
+        return PropertySerializer
+    
+    def destroy(self, request, *args, **kwargs):
+        """Sobrescribir DELETE para hacer soft delete en lugar de borrado físico"""
+        instance = self.get_object()
+        instance.soft_delete()
+        return Response(
+            {'message': 'Propiedad eliminada exitosamente (soft delete)'},
+            status=status.HTTP_204_NO_CONTENT
+        )
     
     @action(detail=False, methods=['get'])
     def choices(self, request):
@@ -18,6 +34,33 @@ class PropertyViewSet(viewsets.ModelViewSet):
             'use': [{'value': code, 'label': label} for code, label in Property.USE_CHOICES],
             'type_building': [{'value': code, 'label': label} for code, label in Property.TYPE_BUILDINGS_CHOICES]
         })
+    
+    @action(detail=True, methods=['post'])
+    def upload_media(self, request, pk=None):
+        """Subir archivos media para una propiedad"""
+        property_instance = self.get_object()
+        files = request.FILES.getlist('files')
+        media_type = request.data.get('media_type', 'image')
+        
+        if not files:
+            return Response(
+                {'error': 'No se proporcionaron archivos'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        created_media = []
+        for file in files:
+            media = PropertyMedia.objects.create(
+                property=property_instance,
+                media_type=media_type,
+                url=file
+            )
+            created_media.append(PropertyMediaSerializer(media).data)
+        
+        return Response({
+            'message': f'{len(created_media)} archivo(s) subido(s) exitosamente',
+            'media': created_media
+        }, status=status.HTTP_201_CREATED)
     
     @action(detail=True, methods=['post'])
     def soft_delete(self, request, pk=None):
@@ -46,7 +89,12 @@ class PropertyDetailsViewSet(viewsets.ModelViewSet):
 
 class PropertyMediaViewSet(viewsets.ModelViewSet):
     queryset = PropertyMedia.objects.all()
-    serializer_class = PropertyMediaSerializer
+    
+    def get_serializer_class(self):
+        """Usar diferentes serializers para listar y crear"""
+        if self.action in ['list', 'retrieve']:
+            return PropertyMediaListSerializer
+        return PropertyMediaSerializer
     
     @action(detail=False, methods=['get'])
     def choices(self, request):

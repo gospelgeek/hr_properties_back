@@ -8,19 +8,49 @@ class PropertyDetailsSerializer(serializers.ModelSerializer):
         exclude = ['id', 'property']  # Excluimos property porque se asigna automáticamente
 
 
+class PropertyMediaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PropertyMedia
+        fields = ['id', 'media_type', 'url', 'uploaded_at']
+        read_only_fields = ['id', 'uploaded_at']
+
+
+class PropertyMediaCreateSerializer(serializers.ModelSerializer):
+    """Serializer para crear media sin especificar property"""
+    class Meta:
+        model = PropertyMedia
+        exclude = ['id', 'property', 'uploaded_at']
+
+
 class PropertySerializer(serializers.ModelSerializer):
     details = PropertyDetailsSerializer(required=False)
+    media = PropertyMediaSerializer(many=True, read_only=True)  # Solo lectura
     
     class Meta:
         model = Property
-        fields = '__all__'
+        fields = [
+            'id',
+            'name',
+            'use',
+            'address',
+            'ubication',
+            'zip_code',
+            'type_building',
+            'city',
+            'created_at',
+            'updated_at',
+            'details',
+            'media'
+        ]
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def create(self, validated_data):
-        """Crear propiedad con detalles en una sola operación"""
+        """Crear propiedad con detalles"""
         details_data = validated_data.pop('details', None)
+        
         property_instance = Property.objects.create(**validated_data)
         
+        # Crear detalles si se proporcionaron
         if details_data:
             PropertyDetails.objects.create(property=property_instance, **details_data)
         
@@ -63,7 +93,44 @@ class EnserInventorySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class PropertyMediaSerializer(serializers.ModelSerializer):
+class EnserInventoryDetailSerializer(serializers.ModelSerializer):
+    """Serializer anidado que incluye los datos completos del enser"""
+    enser = EnserSerializer(read_only=True)
+    
+    class Meta:
+        model = EnserInventory
+        fields = ['id', 'enser', 'url_media']
+
+
+class PropertyDetailSerializer(serializers.ModelSerializer):
+    """Serializer completo con detalles, media e inventario de enseres"""
+    details = PropertyDetailsSerializer(required=False)
+    media = PropertyMediaSerializer(many=True, read_only=True)
+    inventory = EnserInventoryDetailSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = Property
+        fields = [
+            'id',
+            'name',
+            'use',
+            'address',
+            'ubication',
+            'zip_code',
+            'type_building',
+            'city',
+            'created_at',
+            'updated_at',
+            'details',
+            'media',
+            'inventory'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+# Serializer completo de PropertyMedia (con todos los campos) para lectura
+class PropertyMediaListSerializer(serializers.ModelSerializer):
+    """Serializer completo para listar media con información de la propiedad"""
     class Meta:
         model = PropertyMedia
         fields = '__all__'
