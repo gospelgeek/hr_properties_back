@@ -91,9 +91,27 @@ class PropertySerializer(serializers.ModelSerializer):
 
 
 class PropertyLawSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+    
     class Meta:
         model = PropertyLaw
-        fields = '__all__'
+        fields = ['id', 'property', 'entity_name', 'url', 'original_amount', 'legal_number', 'is_paid']
+    
+    def get_url(self, obj):
+        """Devolver la URL completa del archivo si existe"""
+        if obj.url:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.url.url)
+            return obj.url.url
+        return None
+
+
+class PropertyLawCreateSerializer(serializers.ModelSerializer):
+    """Serializer para crear PropertyLaw sin especificar property"""
+    class Meta:
+        model = PropertyLaw
+        exclude = ['id', 'property']
 
 
 class EnserSerializer(serializers.ModelSerializer):
@@ -140,11 +158,12 @@ class RepairSerializer(serializers.ModelSerializer):
 
 
 class PropertyDetailSerializer(serializers.ModelSerializer):
-    """Serializer completo con detalles, media, inventario de enseres y reparaciones"""
+    """Serializer completo con detalles, media, inventario de enseres, reparaciones y leyes"""
     details = PropertyDetailsSerializer(required=False)
     media = PropertyMediaSerializer(many=True, read_only=True)
     inventory = EnserInventoryDetailSerializer(many=True, read_only=True)
     repairs = RepairSerializer(many=True, read_only=True)
+    laws = PropertyLawSerializer(many=True, read_only=True)
     
     class Meta:
         model = Property
@@ -162,7 +181,8 @@ class PropertyDetailSerializer(serializers.ModelSerializer):
             'details',
             'media',
             'inventory',
-            'repairs'
+            'repairs',
+            'laws'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
