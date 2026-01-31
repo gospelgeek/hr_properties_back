@@ -23,6 +23,20 @@ class PropertyMediaCreateSerializer(serializers.ModelSerializer):
         exclude = ['id', 'property', 'uploaded_at']
 
 
+class PropertyMediaUploadSerializer(serializers.Serializer):
+    """Serializer para subir archivos a una propiedad existente"""
+    files = serializers.ListField(
+        child=serializers.FileField(),
+        write_only=True,
+        help_text="Lista de archivos a subir"
+    )
+    media_type = serializers.ChoiceField(
+        choices=PropertyMedia.MEDIA_TYPE_CHOICES,
+        default='image',
+        help_text="Tipo de medio (image, video, document)"
+    )
+
+
 class PropertySerializer(serializers.ModelSerializer):
     details = PropertyDetailsSerializer(required=False)
     media = PropertyMediaSerializer(many=True, read_only=True)  # Solo lectura
@@ -92,6 +106,21 @@ class EnserInventorySerializer(serializers.ModelSerializer):
     class Meta:
         model = EnserInventory
         fields = '__all__'
+
+
+class EnserInventoryCreateSerializer(serializers.ModelSerializer):
+    """Serializer para crear inventario de enseres sin especificar property"""
+    class Meta:
+        model = EnserInventory
+        fields = ['enser', 'url_media']
+
+
+class EnserCreateAndAddSerializer(serializers.Serializer):
+    """Serializer para crear un nuevo enser y añadirlo al inventario de una propiedad"""
+    name = serializers.CharField(max_length=255, help_text="Nombre del enser")
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, help_text="Precio del enser")
+    condition = serializers.ChoiceField(choices=Enser.CONDITION_CHOICES, help_text="Condición del enser")
+    url_media = serializers.FileField(required=False, allow_null=True, help_text="Archivo del inventario (opcional)")
 
 
 class EnserInventoryDetailSerializer(serializers.ModelSerializer):

@@ -1,12 +1,16 @@
-from django.shortcuts import render
-from rest_framework import viewsets, status
+from django.shortcuts import render, get_object_or_404
+from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Property, PropertyLaw, Enser, EnserInventory, PropertyDetails, PropertyMedia
 from .serializers import (
     PropertySerializer, PropertyDetailSerializer, PropertyLawSerializer, EnserSerializer, 
-    EnserInventorySerializer, PropertyDetailsSerializer, PropertyMediaSerializer, PropertyMediaListSerializer
+    EnserInventorySerializer, PropertyDetailsSerializer, PropertyMediaSerializer, 
+    PropertyMediaListSerializer, PropertyMediaUploadSerializer, EnserInventoryCreateSerializer,
+    EnserInventoryDetailSerializer, EnserCreateAndAddSerializer
 )
+from apps.maintenance.models import Repair
+from apps.maintenance.serializers import RepairSerializer, RepairCreateSerializer
 
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = Property.objects.filter(is_deleted__isnull=True)
@@ -34,33 +38,6 @@ class PropertyViewSet(viewsets.ModelViewSet):
             'use': [{'value': code, 'label': label} for code, label in Property.USE_CHOICES],
             'type_building': [{'value': code, 'label': label} for code, label in Property.TYPE_BUILDINGS_CHOICES]
         })
-    
-    @action(detail=True, methods=['post'])
-    def upload_media(self, request, pk=None):
-        """Subir archivos media para una propiedad"""
-        property_instance = self.get_object()
-        files = request.FILES.getlist('files')
-        media_type = request.data.get('media_type', 'image')
-        
-        if not files:
-            return Response(
-                {'error': 'No se proporcionaron archivos'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        created_media = []
-        for file in files:
-            media = PropertyMedia.objects.create(
-                property=property_instance,
-                media_type=media_type,
-                url=file
-            )
-            created_media.append(PropertyMediaSerializer(media).data)
-        
-        return Response({
-            'message': f'{len(created_media)} archivo(s) subido(s) exitosamente',
-            'media': created_media
-        }, status=status.HTTP_201_CREATED)
     
     @action(detail=True, methods=['post'])
     def soft_delete(self, request, pk=None):
@@ -122,3 +99,106 @@ class EnserInventoryViewSet(viewsets.ModelViewSet):
     queryset = EnserInventory.objects.all()
     serializer_class = EnserInventorySerializer
 
+
+class PropertyAddRepairView(generics.CreateAPIView):
+    """Vista para añadir reparaciones a una propiedad específica"""
+    serializer_class = RepairCreateSerializer
+    
+    def get_property(self):
+        """Obtener la propiedad a partir del ID en la URL"""
+        property_id = self.kwargs.get('property_id')
+        return get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
+    
+    def create(self, request, *args, **kwargs):
+        """Crear una reparación asociada a la propiedad"""
+        property_instance = self.get_property()
+        
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            # Guardar asignando automáticamente la propiedad
+            repair = serializer.save(property=property_instance)
+            # Devolver la respuesta con el serializer completo
+            response_serializer = RepairSerializer(repair)
+            return Response({
+                'message': f'Reparación añadida exitosamente a {property_instance.name}',
+                'repair': response_serializer.data
+            }, status=status.HTTP_201_CREATED)
+
+
+class PropertyAddEnserView(generics.CreateAPIView):
+    """Vista para crear un nuevo enser y añadirlo al inventario de una propiedad específica"""
+    serializer_class = EnserCreateAndAddSerializer
+    
+    def get_property(self):
+        """Obtener la propiedad a partir del ID en la URL"""
+        property_id = self.kwargs.get('property_id')
+        return get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
+    
+    def create(self, request, *args, **kwargs):
+        """Crear un enser y añadirlo al inventario de la propiedad"""
+        property_instance = self.get_property()
+        
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            # Crear el enser primero
+            enser = Enser.objects.create(
+                name=serializer.validated_data['name'],
+                price=serializer.validated_data['price'],
+                condition=serializer.validated_data['condition']
+            )
+            
+            # Luego crear el registro de inventario asociando el enser a la propiedad
+            inventory = EnserInventory.objects.create(
+                property=property_instance,
+                enser=enser,
+                url_media=serializer.validated_data.get('url_media')
+            )
+            
+            # Devolver la respuesta con el serializer completo
+            response_serializer = EnserInventoryDetailSerializer(inventory)
+            return Response({
+                'message': f'Enser "{enser.name}" creado y añadido exitosamente al inventario de {property_instance.name}',
+                'inventory': response_serializer.data
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class PropertyUploadMediaView(generics.CreateAPIView):
+    """Vista para subir archivos a una propiedad específica"""
+    serializer_class = PropertyMediaUploadSerializer
+    
+    def get_property(self):
+        """Obtener la propiedad a partir del ID en la URL"""
+        property_id = self.kwargs.get('property_id')
+        return get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
+    
+    def create(self, request, *args, **kwargs):
+        """Subir archivos a la propiedad"""
+        property_instance = self.get_property()
+        
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        files = serializer.validated_data.get('files', [])
+        media_type = serializer.validated_data.get('media_type', 'image')
+        
+        if not files:
+            return Response(
+                {'error': 'No se proporcionaron archivos'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        created_media = []
+        for file in files:
+            media = PropertyMedia.objects.create(
+                property=property_instance,
+                media_type=media_type,
+                url=file
+            )
+            created_media.append(PropertyMediaSerializer(media).data)
+        
+        return Response({
+            'message': f'{len(created_media)} archivo(s) subido(s) exitosamente a {property_instance.name}',
+            'media': created_media
+        }, status=status.HTTP_201_CREATED)
