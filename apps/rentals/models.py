@@ -1,5 +1,5 @@
 from django.db import models
-
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from apps.properties.models import Property
 from apps.finance.models import PaymentMethod
@@ -26,17 +26,16 @@ class Tenant(models.Model):
         return f"{self.name} {self.lastname}"
 
 class Rental(models.Model):
-    STATUS_CHOICES = [
-        ('active', 'Activo'),
-        ('completed', 'Completado'),
-        ('cancelled', 'Cancelado'),
-        ('pending', 'Pendiente'),
-    ]
     
     RENTAL_TYPE_CHOICES = [
         ('monthly', 'Mensual'),
         ('airbnb', 'Airbnb'),
         ('daily', 'Diario'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('ocupada', 'Ocupada'),
+        ('disponible', 'Disponible'),
     ]
     
     id = models.AutoField(primary_key=True)
@@ -73,7 +72,7 @@ class Rental(models.Model):
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='pending',
+        default='ocupada',
         verbose_name='Estado'
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -85,11 +84,41 @@ class Rental(models.Model):
         verbose_name_plural = 'Arriendos'
         ordering = ['-check_in']
     
+    def clean(self):
+        """Validaciones personalizadas"""
+        # Validar que check_out sea después de check_in
+        if self.check_out and self.check_in and self.check_out <= self.check_in:
+            raise ValidationError({
+                'check_out': 'La fecha de salida debe ser posterior a la fecha de entrada'
+            })
+        
+        # Validar solapamiento de fechas para la misma propiedad
+        if self.property and self.check_in and self.check_out:
+            overlapping = Rental.objects.filter(
+                property=self.property,
+                status='ocupada'
+            ).exclude(pk=self.pk).filter(
+                check_in__lt=self.check_out,
+                check_out__gt=self.check_in
+            )
+            
+            if overlapping.exists():
+                rental = overlapping.first()
+                raise ValidationError({
+                    'property': f'Ya existe un rental activo en estas fechas: {rental.tenant.full_name} ({rental.check_in} - {rental.check_out})'
+                })
+    
+    def save(self, *args, **kwargs):
+        """Ejecutar validaciones antes de guardar"""
+        self.full_clean()
+        super().save(*args, **kwargs)
+    
     def __str__(self):
         return f"{self.property.name} - {self.tenant.full_name} ({self.status})"
 
 class RentalPayment(models.Model):
     """Pagos de arriendos - Mejorado con más campos"""
+    LOCATION_CHOICES = [('oficina', 'Oficina'), ('daycare', 'DayCare')]
     id = models.AutoField(primary_key=True)
     rental = models.ForeignKey(
         Rental, 
@@ -103,7 +132,7 @@ class RentalPayment(models.Model):
         db_column='id_paymentMethod',
         verbose_name='Método de pago'
     )
-    payment_location = models.CharField(max_length=255, verbose_name='Lugar de pago')
+    payment_location = models.CharField(max_length=255, verbose_name='Lugar de pago', choices=LOCATION_CHOICES)
     date = models.DateField(verbose_name='Fecha de pago')
     amount = models.DecimalField(
         max_digits=10,

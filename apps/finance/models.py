@@ -5,8 +5,14 @@ from apps.properties.models import Property
 
 class ObligationType(models.Model):
     """Tipos de obligaciones (impuestos, servicios, etc.)"""
+    OBLIGATION_TYPE_CHOICES = [
+        ('tax', 'Impuesto'),
+        ('seguro', 'Seguro'),
+        ('cuota', 'Cuota')
+        ]
+    
     id = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=255, unique=True, verbose_name='Nombre')
+    name = models.CharField(max_length=255, unique=True, verbose_name='Nombre', choices=OBLIGATION_TYPE_CHOICES)
     
     class Meta:
         db_table = 'obligation_type'
@@ -25,6 +31,7 @@ class Obligation(models.Model):
         ('biannual', 'Semestral'),
         ('annual', 'Anual'),
         ('one_time', 'Una vez'),
+        ('weekly', 'Semanal'),
     ]
     
     id = models.AutoField(primary_key=True)
@@ -70,7 +77,6 @@ class PaymentMethod(models.Model):
         ('transfer', 'Transferencia'),
         ('check', 'Cheque'),
         ('card', 'Tarjeta'),
-        ('online', 'Pago en línea'),
     ]
     
     id = models.AutoField(primary_key=True)
