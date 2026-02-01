@@ -121,12 +121,24 @@ class RentalAddPaymentView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         rental_instance = self.get_rental()
         
-        serializer = self.get_serializer(data=request.data)
+        # Pasar rental al contexto para validación
+        serializer = self.get_serializer(
+            data=request.data, 
+            context={'request': request, 'rental': rental_instance}
+        )
+        
         if serializer.is_valid():
             payment = serializer.save(rental=rental_instance)
             response_serializer = RentalPaymentSerializer(payment, context={'request': request})
+            
+            # Mensaje especial para Airbnb
+            if rental_instance.rental_type == 'airbnb':
+                message = f'Pago de Airbnb registrado exitosamente (Transferencia automática)'
+            else:
+                message = f'Pago añadido exitosamente al rental'
+            
             return Response({
-                'message': f'Pago añadido exitosamente al rental',
+                'message': message,
                 'payment': response_serializer.data
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -32,10 +32,52 @@ class RentalPaymentSerializer(serializers.ModelSerializer):
 
 
 class RentalPaymentCreateSerializer(serializers.ModelSerializer):
-    """Serializer para crear pagos sin especificar rental"""
+    """Serializer para crear pagos sin especificar rental
+    
+    Validación especial: Si el rental es de tipo Airbnb, 
+    automáticamente asigna el método de pago "transferencia"
+    """
     class Meta:
         model = RentalPayment
         exclude = ['id', 'rental']
+    
+    def validate(self, data):
+        """
+        Validar que si es Airbnb, el método de pago sea transferencia.
+        Si no se especifica método de pago en Airbnb, lo asigna automáticamente.
+        """
+        # Obtener el rental del contexto (será asignado en la vista)
+        rental = self.context.get('rental')
+        
+        if rental and rental.rental_type == 'airbnb':
+            # Buscar el método de pago "transferencia"
+            from apps.finance.models import PaymentMethod
+            
+            # Si no se proporcionó payment_method, asignar transferencia automáticamente
+            if 'payment_method' not in data or data['payment_method'] is None:
+                try:
+                    transfer_method = PaymentMethod.objects.filter(
+                        name__icontains='transfer'
+                    ).first()
+                    
+                    if not transfer_method:
+                        # Crear el método si no existe
+                        transfer_method = PaymentMethod.objects.create(name='Transferencia')
+                    
+                    data['payment_method'] = transfer_method
+                except Exception:
+                    raise serializers.ValidationError({
+                        'payment_method': 'Para Airbnb se requiere método de pago "Transferencia"'
+                    })
+            else:
+                # Si se proporcionó, validar que sea transferencia
+                payment_method = data['payment_method']
+                if 'transfer' not in payment_method.name.lower():
+                    raise serializers.ValidationError({
+                        'payment_method': f'Los pagos de Airbnb deben ser por transferencia. Método actual: {payment_method.name}'
+                    })
+        
+        return data
 
 
 class RentalSerializer(serializers.ModelSerializer):

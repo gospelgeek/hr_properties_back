@@ -117,7 +117,7 @@ class PropertyPayment(models.Model):
         verbose_name='Monto'
     )
     date = models.DateField(verbose_name='Fecha de pago')
-    voucher_url = models.URLField(
+    voucher_url = models.FileField(
         blank=True,
         db_column='voucher_url',
         verbose_name='URL del comprobante'
