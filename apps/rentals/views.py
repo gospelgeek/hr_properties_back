@@ -60,12 +60,13 @@ class PropertyAddRentalView(generics.CreateAPIView):
         
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            # Guardar asignando automáticamente la propiedad y status='ocupada'
-            rental = serializer.save(property=property_instance, status='ocupada')
+            # Guardar asignando automáticamente la propiedad (status viene del request)
+            rental = serializer.save(property=property_instance)
             # Devolver la respuesta con el serializer completo
             response_serializer = RentalDetailSerializer(rental, context={'request': request})
+            status_msg = 'ocupada' if rental.status == 'ocupada' else 'disponible'
             return Response({
-                'message': f'Rental creado exitosamente para {property_instance.name}. La propiedad ahora está marcada como ocupada.',
+                'message': f'Rental creado exitosamente para {property_instance.name}. Estado: {status_msg}',
                 'rental': response_serializer.data
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -77,6 +78,8 @@ class PropertyRentalsListView(generics.ListAPIView):
     
     def get_queryset(self):
         property_id = self.kwargs.get('property_id')
+        # Validar que la propiedad exista y no esté eliminada
+        get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
         return Rental.objects.filter(property_id=property_id)
 
 
@@ -86,6 +89,8 @@ class PropertyRentalDetailView(generics.RetrieveUpdateDestroyAPIView):
     
     def get_queryset(self):
         property_id = self.kwargs.get('property_id')
+        # Validar que la propiedad exista y no esté eliminada
+        get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
         return Rental.objects.filter(property_id=property_id)
     
     def get_object(self):
@@ -116,6 +121,8 @@ class RentalAddPaymentView(generics.CreateAPIView):
     def get_rental(self):
         property_id = self.kwargs.get('property_id')
         rental_id = self.kwargs.get('rental_id')
+        # Validar que la propiedad exista y no esté eliminada
+        get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
         return get_object_or_404(Rental, pk=rental_id, property_id=property_id)
     
     def create(self, request, *args, **kwargs):
@@ -151,6 +158,8 @@ class RentalPaymentsListView(generics.ListAPIView):
     def get_queryset(self):
         property_id = self.kwargs.get('property_id')
         rental_id = self.kwargs.get('rental_id')
+        # Validar que la propiedad exista y no esté eliminada
+        get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
         return RentalPayment.objects.filter(rental_id=rental_id, rental__property_id=property_id)
 
 
@@ -161,6 +170,8 @@ class RentalPaymentDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         property_id = self.kwargs.get('property_id')
         rental_id = self.kwargs.get('rental_id')
+        # Validar que la propiedad exista y no esté eliminada
+        get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
         return RentalPayment.objects.filter(rental_id=rental_id, rental__property_id=property_id)
     
     def get_object(self):

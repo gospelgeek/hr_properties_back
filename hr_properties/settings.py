@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'rest_framework',
+    'django_filters',  # Para filtros avanzados
     'apps.properties',
     'apps.users',
     'apps.maintenance',

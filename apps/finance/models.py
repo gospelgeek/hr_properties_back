@@ -9,10 +9,15 @@ class ObligationType(models.Model):
         ('tax', 'Impuesto'),
         ('seguro', 'Seguro'),
         ('cuota', 'Cuota')
-        ]
+    ]
     
     id = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=255, unique=True, verbose_name='Nombre', choices=OBLIGATION_TYPE_CHOICES)
+    name = models.CharField(
+        max_length=255, 
+        unique=True, 
+        verbose_name='Nombre',
+        choices=OBLIGATION_TYPE_CHOICES
+    )
     
     class Meta:
         db_table = 'obligation_type'
@@ -20,7 +25,7 @@ class ObligationType(models.Model):
         verbose_name_plural = 'Tipos de Obligaciones'
     
     def __str__(self):
-        return self.name
+        return self.get_name_display()
 
 class Obligation(models.Model):
     """Obligaciones de una propiedad"""
@@ -131,3 +136,55 @@ class PropertyPayment(models.Model):
     
     def __str__(self):
         return f"Pago {self.amount} - {self.obligation.entity_name}"
+
+
+class Notification(models.Model):
+    """Notificaciones del sistema - Alertas y recordatorios"""
+    NOTIFICATION_TYPES = [
+        ('obligation_due', 'Obligación por vencer'),
+        ('rental_ending', 'Rental terminando'),
+        ('payment_overdue', 'Pago vencido'),
+        ('repair_scheduled', 'Reparación programada'),
+        ('system', 'Sistema'),
+    ]
+    
+    PRIORITY_CHOICES = [
+        ('low', 'Baja'),
+        ('medium', 'Media'),
+        ('high', 'Alta'),
+    ]
+    
+    id = models.AutoField(primary_key=True)
+    type = models.CharField(
+        max_length=50, 
+        choices=NOTIFICATION_TYPES,
+        verbose_name='Tipo'
+    )
+    priority = models.CharField(
+        max_length=20,
+        choices=PRIORITY_CHOICES,
+        default='medium',
+        verbose_name='Prioridad'
+    )
+    title = models.CharField(max_length=255, verbose_name='Título')
+    message = models.TextField(verbose_name='Mensaje')
+    is_read = models.BooleanField(default=False, verbose_name='Leída')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Relaciones opcionales (puede estar relacionada con una obligación o rental)
+    obligation = models.ForeignKey(
+        Obligation, 
+        null=True, 
+        blank=True, 
+        on_delete=models.CASCADE,
+        related_name='notifications'
+    )
+    
+    class Meta:
+        db_table = 'notification'
+        verbose_name = 'Notificación'
+        verbose_name_plural = 'Notificaciones'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.get_type_display()} - {self.title}"

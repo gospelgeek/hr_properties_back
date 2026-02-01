@@ -1,8 +1,15 @@
 from rest_framework import viewsets, generics, status
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.decorators import action
+from rest_framework.filters import SearchFilter, OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import get_object_or_404
+from django.db.models import Sum, Count, Q
+from django.utils import timezone
+from datetime import timedelta
 
-from .models import ObligationType, Obligation, PaymentMethod, PropertyPayment
+from .models import ObligationType, Obligation, PaymentMethod, PropertyPayment, Notification
 from .serializers import (
     ObligationTypeSerializer, 
     PaymentMethodSerializer,
@@ -10,8 +17,12 @@ from .serializers import (
     ObligationDetailSerializer,
     ObligationCreateSerializer,
     PropertyPaymentSerializer,
-    PropertyPaymentCreateSerializer
+    PropertyPaymentCreateSerializer,
+    NotificationSerializer,
+    NotificationCreateSerializer
 )
+from .filters import ObligationFilter, PropertyPaymentFilter, NotificationFilter
+from .pagination import StandardPagination, LargePagination
 from apps.properties.models import Property
 
 
@@ -25,9 +36,21 @@ class ObligationTypeViewSet(viewsets.ModelViewSet):
     - GET /api/obligation-types/{id}/ - Ver detalle
     - PUT/PATCH /api/obligation-types/{id}/ - Actualizar
     - DELETE /api/obligation-types/{id}/ - Eliminar
+    - GET /api/obligation-types/choices/ - Obtener opciones disponibles (tax, seguro, cuota)
     """
     queryset = ObligationType.objects.all()
     serializer_class = ObligationTypeSerializer
+    
+    @action(detail=False, methods=['get'])
+    def choices(self, request):
+        """Obtener las opciones disponibles para crear tipos de obligaciones"""
+        from .models import ObligationType
+        return Response({
+            'name': [
+                {'value': code, 'label': label} 
+                for code, label in ObligationType.OBLIGATION_TYPE_CHOICES
+            ]
+        })
 
 
 class PaymentMethodViewSet(viewsets.ModelViewSet):
@@ -45,18 +68,61 @@ class PaymentMethodViewSet(viewsets.ModelViewSet):
 
 class ObligationViewSet(viewsets.ModelViewSet):
     """
-    ViewSet para todas las obligaciones del sistema
-    - GET /api/obligations/ - Listar todas
+    ViewSet para todas las obligaciones del sistema con filtros y paginación
+    
+    ENDPOINTS:
+    - GET /api/obligations/ - Listar todas (paginado)
     - GET /api/obligations/{id}/ - Ver detalle con pagos
     - PUT/PATCH /api/obligations/{id}/ - Actualizar
     - DELETE /api/obligations/{id}/ - Eliminar
+    
+    FILTROS DISPONIBLES:
+    - ?temporality=monthly - Por temporalidad
+    - ?obligation_type=1 - Por tipo de obligación
+    - ?property=2 - Por propiedad
+    - ?due_date_from=2026-02-01 - Fecha desde
+    - ?due_date_to=2026-02-28 - Fecha hasta
+    - ?amount_min=100000 - Monto mínimo
+    - ?amount_max=500000 - Monto máximo
+    - ?entity_contains=luz - Búsqueda en nombre
+    
+    BÚSQUEDA:
+    - ?search=EAAB - Busca en entity_name y property__name
+    
+    ORDENAMIENTO:
+    - ?ordering=due_date - Ordenar por fecha (ascendente)
+    - ?ordering=-amount - Ordenar por monto (descendente)
+    
+    PAGINACIÓN:
+    - ?page=1 - Página 1
+    - ?page_size=50 - 50 resultados por página (max 100)
+    
+    EJEMPLO COMBINADO:
+    GET /api/obligations/?property=2&due_date_from=2026-02-01&ordering=-amount&page=1
     """
     queryset = Obligation.objects.all()
+    pagination_class = StandardPagination
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = ObligationFilter
+    search_fields = ['entity_name', 'property__name']
+    ordering_fields = ['due_date', 'amount', 'entity_name', 'created_at']
+    ordering = ['-due_date']
     
     def get_serializer_class(self):
         if self.action in ['retrieve', 'list']:
             return ObligationDetailSerializer
         return ObligationSerializer
+    
+    @action(detail=False, methods=['get'])
+    def choices(self, request):
+        """Obtener las opciones disponibles para el campo temporality"""
+        from .models import Obligation
+        return Response({
+            'temporality': [
+                {'value': code, 'label': label} 
+                for code, label in Obligation.TEMPORALITY_CHOICES
+            ]
+        })
 
 
 # ========== VISTAS ANIDADAS PARA PROPERTIES ==========
@@ -79,7 +145,7 @@ class PropertyAddObligationView(generics.CreateAPIView):
     
     def get_property(self):
         property_id = self.kwargs.get('property_id')
-        return get_object_or_404(Property, pk=property_id)
+        return get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
     
     def create(self, request, *args, **kwargs):
         property_instance = self.get_property()
@@ -108,6 +174,8 @@ class PropertyObligationsListView(generics.ListAPIView):
     
     def get_queryset(self):
         property_id = self.kwargs.get('property_id')
+        # Validar que la propiedad exista y no esté eliminada
+        get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
         return Obligation.objects.filter(property_id=property_id)
 
 
@@ -122,6 +190,8 @@ class PropertyObligationDetailView(generics.RetrieveUpdateDestroyAPIView):
     
     def get_queryset(self):
         property_id = self.kwargs.get('property_id')
+        # Validar que la propiedad exista y no esté eliminada
+        get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
         return Obligation.objects.filter(property_id=property_id)
     
     def get_object(self):
@@ -167,6 +237,8 @@ class ObligationAddPaymentView(generics.CreateAPIView):
     def get_obligation(self):
         property_id = self.kwargs.get('property_id')
         obligation_id = self.kwargs.get('obligation_id')
+        # Validar que la propiedad exista y no esté eliminada
+        get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
         return get_object_or_404(
             Obligation, 
             pk=obligation_id, 
@@ -223,6 +295,8 @@ class ObligationPaymentsListView(generics.ListAPIView):
         property_id = self.kwargs.get('property_id')
         obligation_id = self.kwargs.get('obligation_id')
         
+        # Validar que la propiedad exista y no esté eliminada
+        get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
         # Validar que la obligación pertenezca a la propiedad
         get_object_or_404(Obligation, pk=obligation_id, property_id=property_id)
         
@@ -242,6 +316,8 @@ class ObligationPaymentDetailView(generics.RetrieveUpdateDestroyAPIView):
         property_id = self.kwargs.get('property_id')
         obligation_id = self.kwargs.get('obligation_id')
         
+        # Validar que la propiedad exista y no esté eliminada
+        get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
         # Validar que la obligación pertenezca a la propiedad
         get_object_or_404(Obligation, pk=obligation_id, property_id=property_id)
         
@@ -257,3 +333,257 @@ class ObligationPaymentDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Response({
             'message': 'Pago eliminado exitosamente'
         }, status=status.HTTP_204_NO_CONTENT)
+
+
+# ========== DASHBOARD - ESTADÍSTICAS GENERALES ==========
+
+class DashboardView(APIView):
+    """
+    Vista de Dashboard con estadísticas del sistema
+    
+    ENDPOINT:
+    GET /api/dashboard/
+    
+    RESPUESTA:
+    {
+        "obligations": {
+            "total_count": 45,
+            "total_amount": 15000000.00,
+            "total_paid": 8500000.00,
+            "pending": 6500000.00,
+            "upcoming_due": 3  // Próximas a vencer (7 días)
+        },
+        "properties": {
+            "total": 12,
+            "by_use": [
+                {"use": "arrendamiento", "count": 8},
+                {"use": "personal", "count": 4}
+            ]
+        },
+        "rentals": {
+            "active": 6,  // Rentals con status='ocupada'
+            "available": 2,  // Propiedades de arrendamiento disponibles
+            "ending_soon": 1  // Rentals que terminan en 15 días
+        },
+        "monthly_summary": {
+            "rental_income": 4500000.00,  // Pagos de rentals este mes
+            "obligation_payments": 1200000.00,  // Pagos de obligaciones este mes
+            "repair_costs": 300000.00,  // Costos de reparaciones este mes
+            "net": 3000000.00  // Ingresos - gastos
+        }
+    }
+    
+    FUNCIONAMIENTO:
+    - Calcula estadísticas en tiempo real
+    - Útil para mostrar en pantalla principal
+    - Puede ser llamado cada vez que el usuario accede al dashboard
+    """
+    
+    def get(self, request):
+        today = timezone.now().date()
+        first_day_of_month = today.replace(day=1)
+        
+        # ========== 1. OBLIGACIONES ==========
+        total_obligations = Obligation.objects.count()
+        total_obligation_amount = Obligation.objects.aggregate(
+            total=Sum('amount')
+        )['total'] or 0
+        
+        # Total pagado en obligaciones
+        total_paid_obligations = PropertyPayment.objects.aggregate(
+            total=Sum('amount')
+        )['total'] or 0
+        
+        pending_obligations = total_obligation_amount - total_paid_obligations
+        
+        # Obligaciones que vencen en los próximos 7 días
+        upcoming_obligations = Obligation.objects.filter(
+            due_date__gte=today,
+            due_date__lte=today + timedelta(days=7)
+        ).count()
+        
+        # ========== 2. PROPIEDADES ==========
+        # Solo contar propiedades activas (no soft-deleted)
+        total_properties = Property.objects.filter(is_deleted__isnull=True).count()
+        properties_by_use = Property.objects.filter(is_deleted__isnull=True).values('use').annotate(count=Count('id'))
+        
+        # ========== 3. RENTALS ==========
+        from apps.rentals.models import Rental, RentalPayment
+        
+        active_rentals = Rental.objects.filter(status='ocupada').count()
+        
+        # Propiedades de arrendamiento sin rental activo (solo activas)
+        available_properties = Property.objects.filter(
+            use='arrendamiento',
+            is_deleted__isnull=True  # Excluir soft-deleted
+        ).exclude(
+            rentals__status='ocupada'
+        ).distinct().count()
+        
+        # Rentals que terminan en los próximos 15 días
+        upcoming_rental_ends = Rental.objects.filter(
+            status='ocupada',
+            check_out__gte=today,
+            check_out__lte=today + timedelta(days=15)
+        ).count()
+        
+        # ========== 4. RESUMEN FINANCIERO DEL MES ==========
+        # Ingresos: pagos de rentals
+        monthly_rental_payments = RentalPayment.objects.filter(
+            date__gte=first_day_of_month,
+            date__lte=today
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        
+        # Gastos: pagos de obligaciones
+        monthly_obligation_payments = PropertyPayment.objects.filter(
+            date__gte=first_day_of_month,
+            date__lte=today
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        
+        # Gastos: reparaciones
+        from apps.maintenance.models import Repair
+        monthly_repairs = Repair.objects.filter(
+            date__gte=first_day_of_month
+        ).aggregate(total=Sum('cost'))['total'] or 0
+        
+        # Neto del mes
+        monthly_net = monthly_rental_payments - monthly_obligation_payments - monthly_repairs
+        
+        return Response({
+            'obligations': {
+                'total_count': total_obligations,
+                'total_amount': float(total_obligation_amount),
+                'total_paid': float(total_paid_obligations),
+                'pending': float(pending_obligations),
+                'upcoming_due': upcoming_obligations
+            },
+            'properties': {
+                'total': total_properties,
+                'by_use': list(properties_by_use)
+            },
+            'rentals': {
+                'active': active_rentals,
+                'available': available_properties,
+                'ending_soon': upcoming_rental_ends
+            },
+            'monthly_summary': {
+                'rental_income': float(monthly_rental_payments),
+                'obligation_payments': float(monthly_obligation_payments),
+                'repair_costs': float(monthly_repairs),
+                'net': float(monthly_net)
+            }
+        })
+
+
+# ========== NOTIFICACIONES ==========
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para notificaciones del sistema
+    
+    ENDPOINTS:
+    - GET /api/notifications/ - Listar no leídas (paginado)
+    - GET /api/notifications/?is_read=true - Listar todas las leídas
+    - GET /api/notifications/{id}/ - Ver detalle
+    - POST /api/notifications/ - Crear notificación manual
+    - DELETE /api/notifications/{id}/ - Eliminar
+    
+    ACCIONES ESPECIALES:
+    - POST /api/notifications/{id}/mark_as_read/ - Marcar una como leída
+    - POST /api/notifications/mark_all_as_read/ - Marcar todas como leídas
+    - GET /api/notifications/unread_count/ - Contar no leídas
+    
+    FILTROS:
+    - ?type=obligation_due - Por tipo
+    - ?priority=high - Por prioridad
+    - ?is_read=false - No leídas (default)
+    - ?created_from=2026-02-01 - Desde fecha
+    
+    ORDENAMIENTO:
+    - ?ordering=-created_at - Más recientes primero (default)
+    - ?ordering=priority - Por prioridad
+    
+    FUNCIONAMIENTO:
+    1. Crear notificación:
+       POST /api/notifications/
+       {
+           "type": "obligation_due",
+           "priority": "high",
+           "title": "Pago de luz",
+           "message": "Vence en 3 días",
+           "obligation": 1
+       }
+    
+    2. Marcar como leída:
+       POST /api/notifications/5/mark_as_read/
+    
+    3. Consultar contador:
+       GET /api/notifications/unread_count/
+       → {"count": 5}
+    """
+    queryset = Notification.objects.all()
+    pagination_class = StandardPagination
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_class = NotificationFilter
+    ordering_fields = ['created_at', 'priority', 'type']
+    ordering = ['-created_at']
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return NotificationCreateSerializer
+        return NotificationSerializer
+    
+    def get_queryset(self):
+        """Por defecto muestra solo no leídas"""
+        queryset = super().get_queryset()
+        
+        # Si no se especifica is_read en los filtros, mostrar solo no leídas
+        if 'is_read' not in self.request.query_params:
+            queryset = queryset.filter(is_read=False)
+        
+        return queryset
+    
+    @action(detail=True, methods=['post'])
+    def mark_as_read(self, request, pk=None):
+        """
+        Marcar una notificación como leída
+        
+        POST /api/notifications/{id}/mark_as_read/
+        """
+        notification = self.get_object()
+        notification.is_read = True
+        notification.save()
+        
+        return Response({
+            'message': 'Notificación marcada como leída',
+            'notification': NotificationSerializer(notification).data
+        })
+    
+    @action(detail=False, methods=['post'])
+    def mark_all_as_read(self, request):
+        """
+        Marcar todas las notificaciones como leídas
+        
+        POST /api/notifications/mark_all_as_read/
+        """
+        count = Notification.objects.filter(is_read=False).update(is_read=True)
+        
+        return Response({
+            'message': f'{count} notificaciones marcadas como leídas',
+            'count': count
+        })
+    
+    @action(detail=False, methods=['get'])
+    def unread_count(self, request):
+        """
+        Contar notificaciones no leídas
+        
+        GET /api/notifications/unread_count/
+        
+        Útil para mostrar badge en el icono de notificaciones
+        """
+        count = Notification.objects.filter(is_read=False).count()
+        
+        return Response({
+            'count': count
+        })

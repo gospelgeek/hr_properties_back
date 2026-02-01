@@ -49,7 +49,9 @@ class Rental(models.Model):
         Tenant, 
         on_delete=models.CASCADE, 
         db_column='id_tenant',
-        related_name='rentals'
+        related_name='rentals',
+        null=True,
+        blank=True
     )
     rental_type = models.CharField(
         max_length=100, 
@@ -72,7 +74,7 @@ class Rental(models.Model):
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='ocupada',
+        default='disponible',
         verbose_name='Estado'
     )
     created_at = models.DateTimeField(auto_now_add=True)

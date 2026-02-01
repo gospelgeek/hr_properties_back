@@ -216,6 +216,8 @@ class PropertyLawDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         """Filtrar PropertyLaws por la propiedad especificada"""
         property_id = self.kwargs.get('property_id')
+        # Validar que la propiedad exista y no esté eliminada
+        get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
         return PropertyLaw.objects.filter(property_id=property_id)
     
     def get_object(self):

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ObligationType, Obligation, PaymentMethod, PropertyPayment
+from .models import ObligationType, Obligation, PaymentMethod, PropertyPayment, Notification
 
 
 class ObligationTypeSerializer(serializers.ModelSerializer):
@@ -87,3 +87,27 @@ class ObligationCreateSerializer(serializers.ModelSerializer):
                 'amount': 'El monto debe ser mayor a 0'
             })
         return data
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    """Serializer para notificaciones"""
+    type_display = serializers.CharField(source='get_type_display', read_only=True)
+    priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+    obligation_name = serializers.CharField(source='obligation.entity_name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'type', 'type_display', 'priority', 'priority_display',
+            'title', 'message', 'is_read', 'created_at', 
+            'obligation', 'obligation_name'
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
+class NotificationCreateSerializer(serializers.ModelSerializer):
+    """Serializer para crear notificaciones manualmente"""
+    class Meta:
+        model = Notification
+        fields = ['type', 'priority', 'title', 'message', 'obligation']
+
