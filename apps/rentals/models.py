@@ -140,7 +140,7 @@ class RentalPayment(models.Model):
         validators=[MinValueValidator(0)],
         verbose_name='Monto'
     )
-    voucher_url = models.URLField(
+    voucher_url = models.FileField(
         blank=True,
         db_column='voucher_url',
         verbose_name='URL del comprobante'
@@ -176,7 +176,7 @@ class MonthlyRental(models.Model):
         db_column='is_refundable',
         verbose_name='Es reembolsable'
     )
-    url_files = models.URLField(
+    url_files = models.FileField(
         blank=True,
         db_column='urlFiles',
         verbose_name='URL de archivos'
