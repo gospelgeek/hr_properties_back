@@ -74,9 +74,6 @@ class Command(BaseCommand):
             'Cheque',
             'Tarjeta de Crédito',
             'Tarjeta de Débito',
-            'PSE',
-            'Nequi',
-            'Daviplata',
             'Consignación',
         ]
         

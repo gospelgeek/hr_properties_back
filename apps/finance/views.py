@@ -61,9 +61,21 @@ class PaymentMethodViewSet(viewsets.ModelViewSet):
     - GET /api/payment-methods/{id}/ - Ver detalle
     - PUT/PATCH /api/payment-methods/{id}/ - Actualizar
     - DELETE /api/payment-methods/{id}/ - Eliminar
+    - GET /api/payment-methods/choices/ - Obtener opciones disponibles
     """
     queryset = PaymentMethod.objects.all()
     serializer_class = PaymentMethodSerializer
+    
+    @action(detail=False, methods=['get'])
+    def choices(self, request):
+        """Obtener las opciones disponibles para métodos de pago"""
+        from .models import PaymentMethod
+        return Response({
+            'name': [
+                {'value': code, 'label': label} 
+                for code, label in PaymentMethod.PAYMENT_TYPES
+            ]
+        })
 
 
 class ObligationViewSet(viewsets.ModelViewSet):

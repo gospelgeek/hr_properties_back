@@ -87,6 +87,7 @@ class PaymentMethod(models.Model):
     id = models.AutoField(primary_key=True)
     name = models.CharField(
         max_length=255,
+        choices=PAYMENT_TYPES,
         unique=True,
         verbose_name='Nombre'
     )
@@ -97,7 +98,7 @@ class PaymentMethod(models.Model):
         verbose_name_plural = 'Métodos de Pago'
     
     def __str__(self):
-        return self.name
+        return self.get_name_display()
 
 class PropertyPayment(models.Model):
     """Pagos de obligaciones de propiedades"""
@@ -112,7 +113,7 @@ class PropertyPayment(models.Model):
     payment_method = models.ForeignKey(
         PaymentMethod, 
         on_delete=models.PROTECT, 
-        db_column='id_paymentMethod',
+        db_column='id_payment_method',
         verbose_name='Método de pago'
     )
     amount = models.DecimalField(
