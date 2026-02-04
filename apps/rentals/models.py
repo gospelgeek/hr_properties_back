@@ -6,17 +6,17 @@ from apps.finance.models import PaymentMethod
 
 class Tenant(models.Model):
     id = models.AutoField(primary_key=True)
-    email = models.EmailField(verbose_name='Correo electrónico')
-    name = models.CharField(max_length=255, verbose_name='Nombre')
-    lastname = models.CharField(max_length=255, verbose_name='Apellido')
-    phone1 = models.CharField(max_length=20, verbose_name='Teléfono 1')
-    phone2 = models.CharField(max_length=20, blank=True, verbose_name='Teléfono 2')
-    observations = models.TextField(blank=True, verbose_name='Observaciones')
+    email = models.EmailField(verbose_name='Email')
+    name = models.CharField(max_length=255, verbose_name='Name')
+    lastname = models.CharField(max_length=255, verbose_name='Last Name')
+    phone1 = models.CharField(max_length=20, verbose_name='Phone 1')
+    phone2 = models.CharField(max_length=20, blank=True, verbose_name='Phone 2')
+    observations = models.TextField(blank=True, verbose_name='Observations')
     
     class Meta:
         db_table = 'tenant'
-        verbose_name = 'Inquilino'
-        verbose_name_plural = 'Inquilinos'
+        verbose_name = 'Tenant'
+        verbose_name_plural = 'Tenants'
     
     def __str__(self):
         return f"{self.name} {self.lastname}"
@@ -28,14 +28,14 @@ class Tenant(models.Model):
 class Rental(models.Model):
     
     RENTAL_TYPE_CHOICES = [
-        ('monthly', 'Mensual'),
+        ('monthly', 'Monthly'),
         ('airbnb', 'Airbnb'),
-        ('daily', 'Diario'),
+        ('daily', 'Daily'),
     ]
     
     STATUS_CHOICES = [
-        ('ocupada', 'Ocupada'),
-        ('disponible', 'Disponible'),
+        ('ocuppied', 'Occupied'),
+        ('available', 'Available'),
     ]
     
     id = models.AutoField(primary_key=True)
@@ -56,34 +56,34 @@ class Rental(models.Model):
     rental_type = models.CharField(
         max_length=100, 
         choices=RENTAL_TYPE_CHOICES,
-        verbose_name='Tipo de arriendo'
+        verbose_name='Rental Type'
     )
-    check_in = models.DateField(verbose_name='Fecha de entrada')
-    check_out = models.DateField(verbose_name='Fecha de salida')
+    check_in = models.DateField(verbose_name='Check In')
+    check_out = models.DateField(verbose_name='Check Out')
     amount = models.DecimalField(
         max_digits=10, 
         decimal_places=2, 
         validators=[MinValueValidator(0)],
-        verbose_name='Monto'
+        verbose_name='Amount'
     )
     people_count = models.IntegerField(
         validators=[MinValueValidator(1)],
-        verbose_name='Número de personas'
+        verbose_name='People Count'
     )
-    notes = models.TextField(blank=True, verbose_name='Notas')
+    notes = models.TextField(blank=True, verbose_name='Notes')
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='disponible',
-        verbose_name='Estado'
+        default='available',
+        verbose_name='Status'
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         db_table = 'rental'
-        verbose_name = 'Arriendo'
-        verbose_name_plural = 'Arriendos'
+        verbose_name = 'Rental'
+        verbose_name_plural = 'Rentals'
         ordering = ['-check_in']
     
     def clean(self):
@@ -98,7 +98,7 @@ class Rental(models.Model):
         if self.property and self.check_in and self.check_out:
             overlapping = Rental.objects.filter(
                 property=self.property,
-                status='ocupada'
+                status='ocuppied'
             ).exclude(pk=self.pk).filter(
                 check_in__lt=self.check_out,
                 check_out__gt=self.check_in
@@ -120,7 +120,7 @@ class Rental(models.Model):
 
 class RentalPayment(models.Model):
     """Pagos de arriendos - Mejorado con más campos"""
-    LOCATION_CHOICES = [('oficina', 'Oficina'), ('daycare', 'DayCare')]
+    LOCATION_CHOICES = [('office', 'Office'), ('daycare', 'Daycare')]
     id = models.AutoField(primary_key=True)
     rental = models.ForeignKey(
         Rental, 
@@ -132,26 +132,26 @@ class RentalPayment(models.Model):
         PaymentMethod,
         on_delete=models.PROTECT,
         db_column='id_paymentMethod',
-        verbose_name='Método de pago'
+        verbose_name='Payment Method'
     )
-    payment_location = models.CharField(max_length=255, verbose_name='Lugar de pago', choices=LOCATION_CHOICES)
-    date = models.DateField(verbose_name='Fecha de pago')
+    payment_location = models.CharField(max_length=255, verbose_name='Payment Location', choices=LOCATION_CHOICES)
+    date = models.DateField(verbose_name='Payment Date')
     amount = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         validators=[MinValueValidator(0)],
-        verbose_name='Monto'
+        verbose_name='Amount'
     )
     voucher_url = models.FileField(
         blank=True,
         db_column='voucher_url',
-        verbose_name='URL del comprobante'
+        verbose_name='Voucher URL'
     )
     
     class Meta:
         db_table = 'rental_payment'
-        verbose_name = 'Pago de Arriendo'
-        verbose_name_plural = 'Pagos de Arriendos'
+        verbose_name = 'Rental Payment'
+        verbose_name_plural = 'Rental Payments'
         ordering = ['-date']
     
     def __str__(self):
@@ -171,23 +171,23 @@ class MonthlyRental(models.Model):
         decimal_places=2,
         validators=[MinValueValidator(0)],
         db_column='depositAmount',
-        verbose_name='Monto de depósito'
+        verbose_name='Deposit Amount'
     )
     is_refundable = models.BooleanField(
         default=True,
         db_column='is_refundable',
-        verbose_name='Es reembolsable'
+        verbose_name='Is Refundable'
     )
     url_files = models.FileField(
         blank=True,
         db_column='urlFiles',
-        verbose_name='URL de archivos'
+        verbose_name='Files URL'
     )
     
     class Meta:
         db_table = 'monthly_rental'
-        verbose_name = 'Arriendo Mensual'
-        verbose_name_plural = 'Arriendos Mensuales'
+        verbose_name = 'Monthly Rental'
+        verbose_name_plural = 'Monthly Rentals'
     
     def __str__(self):
         return f"Mensual - {self.rental}"
@@ -204,13 +204,13 @@ class AirbnbRental(models.Model):
     is_paid = models.BooleanField(
         default=False,
         db_column='is_paid(bool)',
-        verbose_name='Está pagado'
+        verbose_name='Is Paid'
     )
     
     class Meta:
         db_table = 'airbnb_rental'
-        verbose_name = 'Arriendo Airbnb'
-        verbose_name_plural = 'Arriendos Airbnb'
+        verbose_name = 'Airbnb Rental'
+        verbose_name_plural = 'Airbnb Rentals'
     
     def __str__(self):
         return f"Airbnb - {self.rental}"

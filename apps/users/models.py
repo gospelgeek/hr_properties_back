@@ -8,10 +8,10 @@ class Role(models.Model):
     INVITADO = 'invitado'
     
     ROLE_CHOICES = [
-        (ADMIN, 'Administrador'),
-        (CLIENTE, 'Cliente'),
-        (SOPORTE, 'Soporte'),
-        (INVITADO, 'Invitado'),
+        (ADMIN, 'Administrator'),
+        (CLIENTE, 'Client'),
+        (SOPORTE, 'Support'),
+        (INVITADO, 'Guest'),
     ]
     
     id = models.AutoField(primary_key=True)
@@ -19,32 +19,32 @@ class Role(models.Model):
     
     class Meta:
         db_table = 'role'
-        verbose_name = 'Rol'
+        verbose_name = 'Role'
         verbose_name_plural = 'Roles'
     
     def __str__(self):
         return self.get_name_display()
 
 class User(AbstractUser):
-    email = models.EmailField(unique=True, verbose_name='Correo electrónico')
-    name = models.CharField(max_length=255, blank=True, verbose_name='Nombre completo')
+    email = models.EmailField(unique=True, verbose_name='Email')
+    name = models.CharField(max_length=255, blank=True, verbose_name='Full Name')
     google_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
-    profile_picture = models.URLField(blank=True, null=True, verbose_name='Foto de perfil')
+    profile_picture = models.URLField(blank=True, null=True, verbose_name='Profile Picture')
     
     # Sobrescribir los campos para evitar conflictos de reverse accessors
     groups = models.ManyToManyField(
         'auth.Group',
-        verbose_name='grupos',
+        verbose_name='groups',
         blank=True,
-        help_text='Los grupos a los que pertenece este usuario.',
+        help_text='The groups this user belongs to.',
         related_name='custom_user_set',
         related_query_name='custom_user',
     )
     user_permissions = models.ManyToManyField(
         'auth.Permission',
-        verbose_name='permisos de usuario',
+        verbose_name='user permissions',
         blank=True,
-        help_text='Permisos específicos para este usuario.',
+        help_text='Specific permissions for this user.',
         related_name='custom_user_set',
         related_query_name='custom_user',
     )
@@ -54,8 +54,8 @@ class User(AbstractUser):
     
     class Meta:
         db_table = 'user'
-        verbose_name = 'Usuario'
-        verbose_name_plural = 'Usuarios'
+        verbose_name = 'User'
+        verbose_name_plural = 'Users'
     
     def __str__(self):
         return self.email
@@ -77,8 +77,8 @@ class UserRole(models.Model):
     class Meta:
         db_table = 'user_role'
         unique_together = ('user', 'role')
-        verbose_name = 'Rol de Usuario'
-        verbose_name_plural = 'Roles de Usuario'
+        verbose_name = 'User Role'
+        verbose_name_plural = 'User Roles'
     
     def __str__(self):
         return f"{self.user.email} - {self.role.name}"

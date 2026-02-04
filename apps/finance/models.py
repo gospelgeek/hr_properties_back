@@ -6,23 +6,23 @@ from apps.properties.models import Property
 class ObligationType(models.Model):
     """Tipos de obligaciones (impuestos, servicios, etc.)"""
     OBLIGATION_TYPE_CHOICES = [
-        ('tax', 'Impuesto'),
-        ('seguro', 'Seguro'),
-        ('cuota', 'Cuota')
+        ('tax', 'Tax'),
+        ('seguro', 'Insurance'),
+        ('cuota', 'Fee')
     ]
     
     id = models.AutoField(primary_key=True)
     name = models.CharField(
         max_length=255, 
         unique=True, 
-        verbose_name='Nombre',
+        verbose_name='Name',
         choices=OBLIGATION_TYPE_CHOICES
     )
     
     class Meta:
         db_table = 'obligation_type'
-        verbose_name = 'Tipo de Obligación'
-        verbose_name_plural = 'Tipos de Obligaciones'
+        verbose_name = 'Obligation Type'
+        verbose_name_plural = 'Obligation Types'
     
     def __str__(self):
         return self.get_name_display()
@@ -30,13 +30,13 @@ class ObligationType(models.Model):
 class Obligation(models.Model):
     """Obligaciones de una propiedad"""
     TEMPORALITY_CHOICES = [
-        ('monthly', 'Mensual'),
-        ('bimonthly', 'Bimestral'),
-        ('quarterly', 'Trimestral'),
-        ('biannual', 'Semestral'),
-        ('annual', 'Anual'),
-        ('one_time', 'Una vez'),
-        ('weekly', 'Semanal'),
+        ('monthly', 'Monthly'),
+        ('bimonthly', 'Bimonthly'),
+        ('quarterly', 'Quarterly'),
+        ('biannual', 'Biannual'),
+        ('annual', 'Annual'),
+        ('one_time', 'One Time'),
+        ('weekly', 'Weekly'),
     ]
     
     id = models.AutoField(primary_key=True)
@@ -50,26 +50,26 @@ class Obligation(models.Model):
         ObligationType, 
         on_delete=models.PROTECT, 
         db_column='id_obligation_type',
-        verbose_name='Tipo de obligación'
+        verbose_name='Obligation Type'
     )
-    entity_name = models.CharField(max_length=255, verbose_name='Nombre de entidad')
+    entity_name = models.CharField(max_length=255, verbose_name='Entity Name')
     amount = models.DecimalField(
         max_digits=12, 
         decimal_places=2,
         validators=[MinValueValidator(0)],
-        verbose_name='Monto'
+        verbose_name='Amount'
     )
-    due_date = models.DateField(verbose_name='Fecha de vencimiento')
+    due_date = models.DateField(verbose_name='Due Date')
     temporality = models.CharField(
         max_length=100,
         choices=TEMPORALITY_CHOICES,
-        verbose_name='Temporalidad'
+        verbose_name='Temporality'
     )
     
     class Meta:
         db_table = 'obligation'
-        verbose_name = 'Obligación'
-        verbose_name_plural = 'Obligaciones'
+        verbose_name = 'Obligation'
+        verbose_name_plural = 'Obligations'
         ordering = ['-due_date']
     
     def __str__(self):
@@ -78,10 +78,10 @@ class Obligation(models.Model):
 class PaymentMethod(models.Model):
     """Métodos de pago disponibles"""
     PAYMENT_TYPES = [
-        ('cash', 'Efectivo'),
-        ('transfer', 'Transferencia'),
-        ('check', 'Cheque'),
-        ('card', 'Tarjeta'),
+        ('cash', 'Cash'),
+        ('transfer', 'Transfer'),
+        ('check', 'Check'),
+        ('card', 'Card'),
     ]
     
     id = models.AutoField(primary_key=True)
@@ -89,13 +89,13 @@ class PaymentMethod(models.Model):
         max_length=255,
         choices=PAYMENT_TYPES,
         unique=True,
-        verbose_name='Nombre'
+        verbose_name='Name'
     )
     
     class Meta:
         db_table = 'payment_method'
-        verbose_name = 'Método de Pago'
-        verbose_name_plural = 'Métodos de Pago'
+        verbose_name = 'Payment Method'
+        verbose_name_plural = 'Payment Methods'
     
     def __str__(self):
         return self.get_name_display()
@@ -108,31 +108,31 @@ class PropertyPayment(models.Model):
         on_delete=models.CASCADE,
         db_column='id_obligation',
         related_name='payments',
-        verbose_name='Obligación'
+        verbose_name='Obligation'
     )
     payment_method = models.ForeignKey(
         PaymentMethod, 
         on_delete=models.PROTECT, 
         db_column='id_payment_method',
-        verbose_name='Método de pago'
+        verbose_name='Payment Method'
     )
     amount = models.DecimalField(
         max_digits=12, 
         decimal_places=2,
         validators=[MinValueValidator(0)],
-        verbose_name='Monto'
+        verbose_name='Amount'
     )
-    date = models.DateField(verbose_name='Fecha de pago')
+    date = models.DateField(verbose_name='Payment Date')
     voucher_url = models.FileField(
         blank=True,
         db_column='voucher_url',
-        verbose_name='URL del comprobante'
+        verbose_name='Voucher URL'
     )
     
     class Meta:
         db_table = 'property_payment'
-        verbose_name = 'Pago de Obligación'
-        verbose_name_plural = 'Pagos de Obligaciones'
+        verbose_name = 'Obligation Payment'
+        verbose_name_plural = 'Obligation Payments'
         ordering = ['-date']
     
     def __str__(self):
@@ -142,34 +142,34 @@ class PropertyPayment(models.Model):
 class Notification(models.Model):
     """Notificaciones del sistema - Alertas y recordatorios"""
     NOTIFICATION_TYPES = [
-        ('obligation_due', 'Obligación por vencer'),
-        ('rental_ending', 'Rental terminando'),
-        ('payment_overdue', 'Pago vencido'),
-        ('repair_scheduled', 'Reparación programada'),
-        ('system', 'Sistema'),
+        ('obligation_due', 'Obligation Due'),
+        ('rental_ending', 'Rental Ending'),
+        ('payment_overdue', 'Payment Overdue'),
+        ('repair_scheduled', 'Repair Scheduled'),
+        ('system', 'System'),
     ]
     
     PRIORITY_CHOICES = [
-        ('low', 'Baja'),
-        ('medium', 'Media'),
-        ('high', 'Alta'),
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
     ]
     
     id = models.AutoField(primary_key=True)
     type = models.CharField(
         max_length=50, 
         choices=NOTIFICATION_TYPES,
-        verbose_name='Tipo'
+        verbose_name='Type'
     )
     priority = models.CharField(
         max_length=20,
         choices=PRIORITY_CHOICES,
         default='medium',
-        verbose_name='Prioridad'
+        verbose_name='Priority'
     )
-    title = models.CharField(max_length=255, verbose_name='Título')
-    message = models.TextField(verbose_name='Mensaje')
-    is_read = models.BooleanField(default=False, verbose_name='Leída')
+    title = models.CharField(max_length=255, verbose_name='Title')
+    message = models.TextField(verbose_name='Message')
+    is_read = models.BooleanField(default=False, verbose_name='Is Read')
     created_at = models.DateTimeField(auto_now_add=True)
     
     # Relaciones opcionales (puede estar relacionada con una obligación o rental)
@@ -183,8 +183,8 @@ class Notification(models.Model):
     
     class Meta:
         db_table = 'notification'
-        verbose_name = 'Notificación'
-        verbose_name_plural = 'Notificaciones'
+        verbose_name = 'Notification'
+        verbose_name_plural = 'Notifications'
         ordering = ['-created_at']
     
     def __str__(self):

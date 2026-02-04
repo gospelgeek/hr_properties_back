@@ -2,6 +2,7 @@ from django.shortcuts import render, get_object_or_404
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db.models import Sum, Q
 from .models import Property, PropertyLaw, Enser, EnserInventory, PropertyDetails, PropertyMedia
 from .serializers import (
     PropertySerializer, PropertyDetailSerializer, PropertyLawSerializer, EnserSerializer, 
@@ -16,6 +17,63 @@ class PropertyViewSet(viewsets.ModelViewSet):
     queryset = Property.objects.filter(is_deleted__isnull=True)
     serializer_class = PropertySerializer
     
+    def get_queryset(self):
+        """
+        Filtrar propiedades por múltiples criterios:
+        - use: tipo de uso de la propiedad (rental, personal, commercial)
+        - rental_status: estado del rental (active/ocuppied, available) - puede ser múltiple
+        - rental_type: tipo de rental (monthly, airbnb) - puede ser múltiple
+        
+        Ejemplos de URLs:
+        - /api/properties/?use=rental
+        - /api/properties/?rental_status=active
+        - /api/properties/?rental_type=monthly
+        - /api/properties/?use=rental&rental_status=active,available&rental_type=airbnb
+        """
+        from apps.rentals.models import Rental
+        
+        queryset = Property.objects.filter(is_deleted__isnull=True)
+        
+        # Filtro por tipo de uso (rental, personal, commercial)
+        use_type = self.request.query_params.get('use', None)
+        if use_type:
+            queryset = queryset.filter(use=use_type)
+        
+        # Filtro por rental_status (puede ser múltiple: "active" o "available" o "active,available")
+        rental_status = self.request.query_params.get('rental_status', None)
+        if rental_status:
+            statuses = [s.strip() for s in rental_status.split(',')]
+            
+            # Mapear 'active' a 'ocuppied' (el valor real en la BD)
+            mapped_statuses = []
+            for status in statuses:
+                if status == 'active' or status == 'ocuppied':
+                    mapped_statuses.append('ocuppied')
+                else:
+                    mapped_statuses.append(status)
+            
+            if 'available' in mapped_statuses and 'ocuppied' in mapped_statuses:
+                # Si busca ambos, solo filtra por propiedades de rental
+                queryset = queryset.filter(use='rental')
+            elif 'ocuppied' in mapped_statuses:
+                # Propiedades con rental activo (ocuppied)
+                queryset = queryset.filter(rentals__status='ocuppied').distinct()
+            elif 'available' in mapped_statuses:
+                # Propiedades de rental sin rental activo o con rental available
+                queryset = queryset.filter(use='rental').exclude(
+                    rentals__status='ocuppied'
+                ).distinct()
+        
+        # Filtro por rental_type (puede ser múltiple: "monthly" o "airbnb" o "monthly,airbnb")
+        rental_type = self.request.query_params.get('rental_type', None)
+        if rental_type:
+            types = [t.strip() for t in rental_type.split(',')]
+            
+            # Propiedades que tienen al menos un rental del tipo especificado
+            queryset = queryset.filter(rentals__rental_type__in=types).distinct()
+        
+        return queryset
+    
     def get_serializer_class(self):
         """Usar PropertyDetailSerializer para ver detalle, PropertySerializer para listar/crear"""
         if self.action == 'retrieve':
@@ -27,16 +85,116 @@ class PropertyViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         instance.soft_delete()
         return Response(
-            {'message': 'Propiedad eliminada exitosamente (soft delete)'},
+            {'message': 'Property deleted successfully (soft delete)'},
             status=status.HTTP_204_NO_CONTENT
         )
     
     @action(detail=False, methods=['get'])
     def choices(self, request):
-        """Obtener las opciones disponibles para los campos choices"""
+        """
+        GET /api/properties/choices/
+        
+        Get available options for choice fields
+        
+        Example:
+        {
+            "use": [
+                {"value": "rental", "label": "Rental"},
+                {"value": "Personal", "label": "Personal"},
+                {"value": "Comercial", "label": "Commercial"}
+            ],
+            "type_building": [
+                {"value": "Casa", "label": "House"},
+                {"value": "Apartamento", "label": "Apartment"},
+                {"value": "Oficina", "label": "Office"}
+            ]
+        }
+        """
         return Response({
             'use': [{'value': code, 'label': label} for code, label in Property.USE_CHOICES],
             'type_building': [{'value': code, 'label': label} for code, label in Property.TYPE_BUILDINGS_CHOICES]
+        })
+    
+    @action(detail=True, methods=['get'])
+    def repairs_cost(self, request, pk=None):
+        """
+        GET /api/properties/{id}/repairs_cost/
+        
+        Get total cost of all repairs for this property
+        
+        Response:
+        {
+            "total_repairs": 1500000.00,
+            "repairs_count": 5,
+            "repairs": [...]
+        }
+        """
+        property_instance = self.get_object()
+        repairs = Repair.objects.filter(property=property_instance)
+        total_cost = repairs.aggregate(total=Sum('cost'))['total'] or 0
+        
+        return Response({
+            'total_repairs': total_cost,
+            'repairs_count': repairs.count(),
+            'repairs': RepairSerializer(repairs, many=True).data
+        })
+    
+    @action(detail=True, methods=['get'])
+    def financials(self, request, pk=None):
+        """
+        GET /api/properties/{id}/financials/
+        
+        Get complete financial summary for this property
+        
+        Response:
+        {
+            "income": {
+                "rental_payments": 5000000.00,
+                "total_income": 5000000.00
+            },
+            "expenses": {
+                "obligations": 1200000.00,
+                "repairs": 800000.00,
+                "total_expenses": 2000000.00
+            },
+            "balance": 3000000.00
+        }
+        """
+        from apps.finance.models import PropertyPayment
+        from apps.rentals.models import RentalPayment
+        
+        property_instance = self.get_object()
+        
+        # INGRESOS - Pagos de rentals
+        rental_payments = RentalPayment.objects.filter(
+            rental__property=property_instance
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        
+        # GASTOS - Obligaciones pagadas
+        obligation_payments = PropertyPayment.objects.filter(
+            obligation__property=property_instance
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        
+        # GASTOS - Reparaciones
+        repairs_cost = Repair.objects.filter(
+            property=property_instance
+        ).aggregate(total=Sum('cost'))['total'] or 0
+        
+        total_income = rental_payments
+        total_expenses = obligation_payments + repairs_cost
+        balance = total_income - total_expenses
+        
+        return Response({
+            'income': {
+                'rental_payments': rental_payments,
+                'total_income': total_income
+            },
+            'expenses': {
+                'obligations': obligation_payments,
+                'repairs': repairs_cost,
+                'total_expenses': total_expenses
+            },
+            'balance': balance
         })
     
     @action(detail=True, methods=['post'])
@@ -44,14 +202,14 @@ class PropertyViewSet(viewsets.ModelViewSet):
         """Soft delete de una propiedad"""
         property = self.get_object()
         property.soft_delete()
-        return Response({'status': 'Propiedad eliminada'})
+        return Response({'status': 'Property deleted'})
     
     @action(detail=True, methods=['post'])
     def restore(self, request, pk=None):
         """Restaurar una propiedad eliminada"""
         property = Property.objects.get(pk=pk)
         property.restore()
-        return Response({'status': 'Propiedad restaurada'})
+        return Response({'status': 'Property restored'})
     
     @action(detail=False, methods=['get'])
     def deleted(self, request):

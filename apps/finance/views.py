@@ -368,13 +368,13 @@ class DashboardView(APIView):
         "properties": {
             "total": 12,
             "by_use": [
-                {"use": "arrendamiento", "count": 8},
+                {"use": "rental", "count": 8},
                 {"use": "personal", "count": 4}
             ]
         },
         "rentals": {
             "active": 6,  // Rentals con status='ocupada'
-            "available": 2,  // Propiedades de arrendamiento disponibles
+            "available": 2,  // Propiedades de rental disponibles
             "ending_soon": 1  // Rentals que terminan en 15 días
         },
         "monthly_summary": {
@@ -422,21 +422,60 @@ class DashboardView(APIView):
         # ========== 3. RENTALS ==========
         from apps.rentals.models import Rental, RentalPayment
         
-        active_rentals = Rental.objects.filter(status='ocupada').count()
+        active_rentals = Rental.objects.filter(status='ocuppied').count()
         
-        # Propiedades de arrendamiento sin rental activo (solo activas)
+        # Propiedades de rental sin rental activo (solo activas)
         available_properties = Property.objects.filter(
-            use='arrendamiento',
+            use='rental',
             is_deleted__isnull=True  # Excluir soft-deleted
         ).exclude(
-            rentals__status='ocupada'
+            rentals__status='ocuppied'
         ).distinct().count()
         
         # Rentals que terminan en los próximos 15 días
         upcoming_rental_ends = Rental.objects.filter(
-            status='ocupada',
+            status='ocuppied',
             check_out__gte=today,
             check_out__lte=today + timedelta(days=15)
+        ).count()
+        
+        # Estadísticas detalladas por tipo de rental (30 días para ending_soon)
+        ending_soon_date = today + timedelta(days=30)
+        
+        # Monthly rentals
+        monthly_active = Rental.objects.filter(
+            rental_type='monthly',
+            status='ocuppied'
+        ).count()
+        
+        monthly_available = Rental.objects.filter(
+            rental_type='monthly',
+            status='available'
+        ).count()
+        
+        monthly_ending_soon = Rental.objects.filter(
+            rental_type='monthly',
+            status='ocuppied',
+            check_out__gte=today,
+            check_out__lte=ending_soon_date
+        ).count()
+        
+        # Airbnb rentals
+        airbnb_active = Rental.objects.filter(
+            rental_type='airbnb',
+            status='ocuppied'
+        ).count()
+        
+        airbnb_available = Rental.objects.filter(
+            rental_type='airbnb',
+            status='available'
+        ).count()
+        
+        airbnb_ending_soon = Rental.objects.filter(
+            rental_type='airbnb',
+            status='ocuppied',
+            check_out__gte=today,
+            check_out__lte=ending_soon_date
         ).count()
         
         # ========== 4. RESUMEN FINANCIERO DEL MES ==========
@@ -476,7 +515,14 @@ class DashboardView(APIView):
             'rentals': {
                 'active': active_rentals,
                 'available': available_properties,
-                'ending_soon': upcoming_rental_ends
+                'ending_soon': upcoming_rental_ends,
+                # Estadísticas detalladas por tipo
+                'monthly_active': monthly_active,
+                'monthly_available': monthly_available,
+                'monthly_ending_soon': monthly_ending_soon,
+                'airbnb_active': airbnb_active,
+                'airbnb_available': airbnb_available,
+                'airbnb_ending_soon': airbnb_ending_soon
             },
             'monthly_summary': {
                 'rental_income': float(monthly_rental_payments),

@@ -3,7 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     TenantViewSet, RentalViewSet,
     PropertyAddRentalView, PropertyRentalsListView, PropertyRentalDetailView,
-    RentalAddPaymentView, RentalPaymentsListView, RentalPaymentDetailView
+    RentalAddPaymentView, RentalPaymentsListView, RentalPaymentDetailView,
+    RentalsDashboardStatsView
 )
 
 router = DefaultRouter()
@@ -12,6 +13,9 @@ router.register(r'rentals', RentalViewSet, basename='rental')
 
 urlpatterns = [
     path('', include(router.urls)),
+    
+    # Dashboard y estadísticas
+    path('dashboard/stats/', RentalsDashboardStatsView.as_view(), name='rentals-dashboard-stats'),
     
     # Rutas para rentals de propiedades específicas
     path('properties/<int:property_id>/add_rental/', PropertyAddRentalView.as_view(), name='property-add-rental'),
@@ -39,7 +43,7 @@ GET    /api/rentals/                    - Listar todos los arriendos
 GET    /api/rentals/{id}/               - Ver detalle completo de un arriendo
 
 --- RENTALS DE PROPIEDADES ESPECÍFICAS ---
-POST   /api/properties/{id}/add_rental/             - Crear rental para una propiedad (valida que sea de arrendamiento)
+POST   /api/properties/{id}/add_rental/             - Crear rental para una propiedad (valida que sea de rental)
 GET    /api/properties/{id}/rentals/                - Listar todos los rentals de la propiedad
 GET    /api/properties/{id}/rentals/{rental_id}/    - Ver/editar/eliminar rental específico
 PATCH  /api/properties/{id}/rentals/{rental_id}/    - Actualizar rental
@@ -53,7 +57,7 @@ PATCH  /api/properties/{id}/rentals/{rental_id}/payments/{payment_id}/       - A
 DELETE /api/properties/{id}/rentals/{rental_id}/payments/{payment_id}/       - Eliminar pago
 
 --- FLUJO DE USO ---
-1. Crear propiedad con use='arrendamiento'
+1. Crear propiedad con use='rental'
 2. Crear tenant
 3. Crear rental en /api/properties/{id}/add_rental/ con datos de:
    - tenant (ID del inquilino)

@@ -6,22 +6,42 @@ from django.utils import timezone
 
 class Property(models.Model):
     
-    USE_CHOICES = [('arrendamiento', 'Arrendamiento'), ('personal', 'Personal'), ('comercial', 'Comercial')]
-    TYPE_BUILDINGS_CHOICES = [('casa', 'Casa'), ('apartamento', 'Apartamento'), ('oficina', 'Oficina')]
+    USE_CHOICES = [
+        ('rental', 'Rental'),
+        ('personal', 'Personal'),
+        ('commercial', 'Commercial')
+    ]
+    TYPE_BUILDINGS_CHOICES = [
+        ('house', 'House'),
+        ('apartment', 'Apartment'),
+        ('office', 'Office')
+    ]
     
     id = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=255, verbose_name='Nombre')
-    use = models.CharField(max_length=100, choices=USE_CHOICES, verbose_name='Uso')
-    address = models.CharField(max_length=255, verbose_name='Dirección')
-    ubication = models.CharField(max_length=255, verbose_name='Ubicación')
-    zip_code = models.CharField(max_length=20, verbose_name='Código postal')
-    type_building = models.CharField(max_length=100, choices=TYPE_BUILDINGS_CHOICES, verbose_name='Tipo de edificio')
-    city = models.CharField(max_length=100, verbose_name='Ciudad')
+    name = models.CharField(max_length=255, verbose_name='Name')
+    use = models.CharField(max_length=100, choices=USE_CHOICES, verbose_name='Use Type')
+    address = models.CharField(max_length=255, verbose_name='Address')
+    map_url = models.URLField(
+        max_length=2000,
+        blank=True,
+        verbose_name='Google Maps URL',
+        help_text='Google Maps embed URL (src from iframe)'
+    )
+    zip_code = models.CharField(max_length=20, verbose_name='Zip Code')
+    type_building = models.CharField(max_length=100, choices=TYPE_BUILDINGS_CHOICES, verbose_name='Building Type')
+    state = models.CharField(max_length=100, db_column='state', verbose_name='State', default='Unknown')
+    city = models.CharField(max_length=100, verbose_name='City')
+    image_url = models.FileField(
+        max_length=500,
+        blank=True,
+        verbose_name='Featured Image',
+        help_text='Main property image URL'
+    )
     is_deleted = models.DateTimeField(
         null=True, 
         blank=True, 
         db_column='is_deleted',
-        verbose_name='Fecha de eliminación'
+        verbose_name='Deleted At'
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -58,11 +78,11 @@ class PropertyDetails(models.Model):
         db_column='id_property',
         related_name='details'
     )
-    bedrooms = models.IntegerField(verbose_name='Habitaciones')
-    bathrooms = models.IntegerField(verbose_name='Baños')
-    floors = models.IntegerField(verbose_name='Pisos')
-    observations = models.TextField(blank=True, verbose_name='Observaciones')
-    buildings = models.IntegerField(default=1, verbose_name='Edificios')
+    bedrooms = models.IntegerField(verbose_name='Bedrooms')
+    bathrooms = models.IntegerField(verbose_name='Bathrooms')
+    floors = models.IntegerField(verbose_name='Floors')
+    observations = models.TextField(blank=True, verbose_name='Observations')
+    buildings = models.IntegerField(default=1, verbose_name='Buildings')
     
     class Meta:
         db_table = 'property_details'
@@ -132,10 +152,10 @@ class PropertyLaw(models.Model):
 
 class Enser(models.Model):
     CONDITION_CHOICES = [
-        ('new', 'Nuevo'),
-        ('good', 'Bueno'),
-        ('fair', 'Regular'),
-        ('poor', 'Malo'),
+        ('new', 'New'),
+        ('good', 'Good'),
+        ('fair', 'Fair'),
+        ('poor', 'Poor'),
     ]
     
     id = models.AutoField(primary_key=True)

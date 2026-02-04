@@ -15,16 +15,16 @@ class Repair(models.Model):
         max_digits=10, 
         decimal_places=2,
         validators=[MinValueValidator(0)],
-        verbose_name='Costo'
+        verbose_name='Cost'
     )
-    date = models.DateField(verbose_name='Fecha')
-    observation = models.TextField(blank=True, verbose_name='Observación')
-    description = models.TextField(verbose_name='Descripción')
+    date = models.DateField(verbose_name='Date')
+    observation = models.TextField(blank=True, verbose_name='Observation')
+    description = models.TextField(verbose_name='Description')
     
     class Meta:
         db_table = 'repair'
-        verbose_name = 'Reparación'
-        verbose_name_plural = 'Reparaciones'
+        verbose_name = 'Repair'
+        verbose_name_plural = 'Repairs'
         ordering = ['-date']
     
     def __str__(self):

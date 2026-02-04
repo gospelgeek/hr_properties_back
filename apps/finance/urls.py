@@ -95,6 +95,15 @@ FINANCE APP - URLs para gestión financiera de propiedades
    PUT    /api/properties/{property_id}/obligations/{obligation_id}/payments/{payment_id}/
    PATCH  /api/properties/{property_id}/obligations/{obligation_id}/payments/{payment_id}/
    DELETE /api/properties/{property_id}/obligations/{obligation_id}/payments/{payment_id}/
+   
+   # 1. Obtener solo propiedades de rental
+GET /api/properties/?use=rental
+
+# 2. Ver finanzas de propiedad específica
+GET /api/properties/1/financials/
+
+# 3. Ver total de reparaciones
+GET /api/properties/1/repairs_cost/
 
 ═══════════════════════════════════════════════════════════════════════
 📊 DASHBOARD - ESTADÍSTICAS GENERALES
@@ -115,7 +124,7 @@ FINANCE APP - URLs para gestión financiera de propiedades
         "properties": {
             "total": 12,
             "by_use": [
-                {"use": "arrendamiento", "count": 8}
+                {"use": "rental", "count": 8}
             ]
         },
         "rentals": {
