@@ -1,0 +1,18 @@
+# Core Django
+Django>=5.0,<6.0
+djangorestframework>=3.14.0
+
+# Authentication
+djangorestframework-simplejwt>=5.3.0
+google-auth>=2.23.0
+
+# Utilities
+django-filter>=24.2
+python-decouple>=3.8
+Pillow>=10.0.0
+
+# Database
+psycopg2-binary>=2.9.0  # PostgreSQL (si se usa en producción)
+
+# Development
+coverage>=7.0.0
