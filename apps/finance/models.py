@@ -28,7 +28,21 @@ class ObligationType(models.Model):
         return self.get_name_display()
 
 class Obligation(models.Model):
-    """Obligaciones de una propiedad"""
+    """
+    Obligaciones de una propiedad
+    
+    ⚠️ MANEJO DE RECURRENCIA (IMPORTANTE):
+    ========================================
+    Cada Obligation es UN REGISTRO ÚNICO para UN PERÍODO específico.
+    NO se crean automáticamente nuevas obligaciones para el siguiente período.
+    
+    FLUJO:
+    1. Crear obligation febrero: amount=580000, due_date='2026-02-15', temporality='monthly'
+    2. Registrar pagos (puede ser parcial o completo)
+    3. Para marzo: CREAR MANUALMENTE otra obligation nueva
+    
+    MEJORA FUTURA: Sistema de tareas programadas para crear automáticamente
+    """
     TEMPORALITY_CHOICES = [
         ('monthly', 'Monthly'),
         ('bimonthly', 'Bimonthly'),
@@ -102,6 +116,8 @@ class PaymentMethod(models.Model):
 
 class PropertyPayment(models.Model):
     """Pagos de obligaciones de propiedades"""
+    LOCATION_CHOICES = [('office', 'Office'), ('daycare', 'Daycare')]
+    
     id = models.AutoField(primary_key=True)
     obligation = models.ForeignKey(
         Obligation,
@@ -115,6 +131,12 @@ class PropertyPayment(models.Model):
         on_delete=models.PROTECT, 
         db_column='id_payment_method',
         verbose_name='Payment Method'
+    )
+    payment_location = models.CharField(
+        max_length=255,
+        default="office",
+        choices=LOCATION_CHOICES,
+        verbose_name='Payment Location'
     )
     amount = models.DecimalField(
         max_digits=12, 

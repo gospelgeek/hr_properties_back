@@ -9,6 +9,7 @@ from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from datetime import timedelta
 
+from apps.users.permissions import IsAdminUser
 from .models import ObligationType, Obligation, PaymentMethod, PropertyPayment, Notification
 from .serializers import (
     ObligationTypeSerializer, 
@@ -40,6 +41,7 @@ class ObligationTypeViewSet(viewsets.ModelViewSet):
     """
     queryset = ObligationType.objects.all()
     serializer_class = ObligationTypeSerializer
+    permission_classes = [IsAdminUser]  # Solo admins
     
     @action(detail=False, methods=['get'])
     def choices(self, request):
@@ -65,6 +67,7 @@ class PaymentMethodViewSet(viewsets.ModelViewSet):
     """
     queryset = PaymentMethod.objects.all()
     serializer_class = PaymentMethodSerializer
+    permission_classes = [IsAdminUser]  # Solo admins
     
     @action(detail=False, methods=['get'])
     def choices(self, request):
@@ -112,7 +115,8 @@ class ObligationViewSet(viewsets.ModelViewSet):
     EJEMPLO COMBINADO:
     GET /api/obligations/?property=2&due_date_from=2026-02-01&ordering=-amount&page=1
     """
-    queryset = Obligation.objects.all()
+    queryset = Obligation.objects.filter(property__is_deleted__isnull=True)
+    permission_classes = [IsAdminUser]  # Solo admins
     pagination_class = StandardPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ObligationFilter
@@ -260,7 +264,12 @@ class ObligationAddPaymentView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         obligation_instance = self.get_obligation()
         
-        serializer = self.get_serializer(data=request.data)
+        # Limpiar voucher_url si viene como string vacío
+        data = request.data.copy()
+        if 'voucher_url' in data and data['voucher_url'] == '':
+            data.pop('voucher_url')
+        
+        serializer = self.get_serializer(data=data)
         if serializer.is_valid():
             # Validar que no se pague más de lo debido
             total_paid = sum(p.amount for p in obligation_instance.payments.all())
@@ -293,6 +302,9 @@ class ObligationAddPaymentView(generics.CreateAPIView):
                     'is_fully_paid': is_fully_paid
                 }
             }, status=status.HTTP_201_CREATED)
+        
+        # Imprimir errores para debugging
+        print("❌ Errores de validación:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -352,6 +364,7 @@ class ObligationPaymentDetailView(generics.RetrieveUpdateDestroyAPIView):
 class DashboardView(APIView):
     """
     Vista de Dashboard con estadísticas del sistema
+    Solo accesible para administradores
     
     ENDPOINT:
     GET /api/dashboard/
@@ -363,7 +376,7 @@ class DashboardView(APIView):
             "total_amount": 15000000.00,
             "total_paid": 8500000.00,
             "pending": 6500000.00,
-            "upcoming_due": 3  // Próximas a vencer (7 días)
+            "upcoming_due": 3
         },
         "properties": {
             "total": 12,
@@ -373,15 +386,15 @@ class DashboardView(APIView):
             ]
         },
         "rentals": {
-            "active": 6,  // Rentals con status='ocupada'
-            "available": 2,  // Propiedades de rental disponibles
-            "ending_soon": 1  // Rentals que terminan en 15 días
+            "active": 6,
+            "available": 2,
+            "ending_soon": 1
         },
         "monthly_summary": {
-            "rental_income": 4500000.00,  // Pagos de rentals este mes
-            "obligation_payments": 1200000.00,  // Pagos de obligaciones este mes
-            "repair_costs": 300000.00,  // Costos de reparaciones este mes
-            "net": 3000000.00  // Ingresos - gastos
+            "rental_income": 4500000.00,
+            "obligation_payments": 1200000.00,
+            "repair_costs": 300000.00,
+            "net": 3000000.00
         }
     }
     
@@ -390,14 +403,15 @@ class DashboardView(APIView):
     - Útil para mostrar en pantalla principal
     - Puede ser llamado cada vez que el usuario accede al dashboard
     """
+    permission_classes = [IsAdminUser]  # Solo admins
     
     def get(self, request):
         today = timezone.now().date()
         first_day_of_month = today.replace(day=1)
         
         # ========== 1. OBLIGACIONES ==========
-        total_obligations = Obligation.objects.count()
-        total_obligation_amount = Obligation.objects.aggregate(
+        total_obligations = Obligation.objects.filter(property__is_deleted__isnull=True).count()
+        total_obligation_amount = Obligation.objects.filter(property__is_deleted__isnull=True).aggregate(
             total=Sum('amount')
         )['total'] or 0
         
@@ -409,7 +423,38 @@ class DashboardView(APIView):
         pending_obligations = total_obligation_amount - total_paid_obligations
         
         # Obligaciones que vencen en los próximos 7 días
-        upcoming_obligations = Obligation.objects.filter(
+        upcoming_obligations = Obligation.objects.filter(property__is_deleted__isnull=True,
+            due_date__gte=today,
+            due_date__lte=today + timedelta(days=7)
+        ).count()
+        
+        # ========== 1.1 OBLIGACIONES DEL MES ==========
+        # Obligaciones del mes actual (por fecha de vencimiento)
+        # NOTA: Incluye TODAS las obligaciones del mes, no solo las que ya vencieron
+        last_day_of_month = (first_day_of_month.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        
+        month_obligations = Obligation.objects.filter(property__is_deleted__isnull=True,
+            due_date__gte=first_day_of_month,
+            due_date__lte=last_day_of_month  # Hasta el último día del mes
+        )
+        
+        month_obligations_count = month_obligations.count()
+        month_obligations_amount = month_obligations.aggregate(
+            total=Sum('amount')
+        )['total'] or 0
+        
+        # Pagos de obligaciones del mes (pagos realizados este mes)
+        month_obligations_paid = PropertyPayment.objects.filter(
+            
+            date__gte=first_day_of_month,
+            date__lte=today
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        
+        month_obligations_pending = month_obligations_amount - month_obligations_paid
+        
+        # Obligaciones del mes que vencen en los próximos 7 días
+        # Solo cuenta las que están dentro del mes Y vencen en los próximos 7 días
+        month_upcoming = month_obligations.filter(
             due_date__gte=today,
             due_date__lte=today + timedelta(days=7)
         ).count()
@@ -422,19 +467,19 @@ class DashboardView(APIView):
         # ========== 3. RENTALS ==========
         from apps.rentals.models import Rental, RentalPayment
         
-        active_rentals = Rental.objects.filter(status='ocuppied').count()
+        active_rentals = Rental.objects.filter(status='occupied').count()
         
         # Propiedades de rental sin rental activo (solo activas)
         available_properties = Property.objects.filter(
             use='rental',
             is_deleted__isnull=True  # Excluir soft-deleted
         ).exclude(
-            rentals__status='ocuppied'
+            rentals__status='occupied'
         ).distinct().count()
         
         # Rentals que terminan en los próximos 15 días
         upcoming_rental_ends = Rental.objects.filter(
-            status='ocuppied',
+            status='occupied',
             check_out__gte=today,
             check_out__lte=today + timedelta(days=15)
         ).count()
@@ -445,7 +490,7 @@ class DashboardView(APIView):
         # Monthly rentals
         monthly_active = Rental.objects.filter(
             rental_type='monthly',
-            status='ocuppied'
+            status='occupied'
         ).count()
         
         monthly_available = Rental.objects.filter(
@@ -455,7 +500,7 @@ class DashboardView(APIView):
         
         monthly_ending_soon = Rental.objects.filter(
             rental_type='monthly',
-            status='ocuppied',
+            status='occupied',
             check_out__gte=today,
             check_out__lte=ending_soon_date
         ).count()
@@ -463,7 +508,7 @@ class DashboardView(APIView):
         # Airbnb rentals
         airbnb_active = Rental.objects.filter(
             rental_type='airbnb',
-            status='ocuppied'
+            status='occupied'
         ).count()
         
         airbnb_available = Rental.objects.filter(
@@ -473,7 +518,7 @@ class DashboardView(APIView):
         
         airbnb_ending_soon = Rental.objects.filter(
             rental_type='airbnb',
-            status='ocuppied',
+            status='occupied',
             check_out__gte=today,
             check_out__lte=ending_soon_date
         ).count()
@@ -507,6 +552,13 @@ class DashboardView(APIView):
                 'total_paid': float(total_paid_obligations),
                 'pending': float(pending_obligations),
                 'upcoming_due': upcoming_obligations
+            },
+            'obligations_month': {
+                'total_count': month_obligations_count,
+                'total_amount': float(month_obligations_amount),
+                'total_paid': float(month_obligations_paid),
+                'pending': float(month_obligations_pending),
+                'upcoming_due': month_upcoming
             },
             'properties': {
                 'total': total_properties,
@@ -645,3 +697,4 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response({
             'count': count
         })
+

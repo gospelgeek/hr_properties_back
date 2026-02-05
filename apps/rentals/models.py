@@ -5,12 +5,20 @@ from apps.properties.models import Property
 from apps.finance.models import PaymentMethod
 
 class Tenant(models.Model):
+    """
+    Inquilinos - Al crear un tenant se genera automáticamente un User con rol 'cliente'
+    
+    Credenciales de acceso:
+    - Username: phone1
+    - Password: phone1 + birth_year (ej: "31234567891995")
+    """
     id = models.AutoField(primary_key=True)
     email = models.EmailField(verbose_name='Email')
     name = models.CharField(max_length=255, verbose_name='Name')
     lastname = models.CharField(max_length=255, verbose_name='Last Name')
-    phone1 = models.CharField(max_length=20, verbose_name='Phone 1')
+    phone1 = models.CharField(max_length=20, unique=True, verbose_name='Phone 1')
     phone2 = models.CharField(max_length=20, blank=True, verbose_name='Phone 2')
+    birth_year = models.IntegerField(verbose_name='Birth Year', help_text='Año de nacimiento (ej: 1990)', default=1990)
     observations = models.TextField(blank=True, verbose_name='Observations')
     
     class Meta:
@@ -34,7 +42,7 @@ class Rental(models.Model):
     ]
     
     STATUS_CHOICES = [
-        ('ocuppied', 'Occupied'),
+        ('occupied', 'Occupied'),
         ('available', 'Available'),
     ]
     
@@ -98,7 +106,7 @@ class Rental(models.Model):
         if self.property and self.check_in and self.check_out:
             overlapping = Rental.objects.filter(
                 property=self.property,
-                status='ocuppied'
+                status='occupied'
             ).exclude(pk=self.pk).filter(
                 check_in__lt=self.check_out,
                 check_out__gt=self.check_in

@@ -7,6 +7,7 @@ from django.db.models import Count, Q
 from datetime import timedelta
 from django.utils import timezone
 
+from apps.users.permissions import IsAdminUser, IsAdminOrReadOnlyClient
 from .models import Tenant, Rental, RentalPayment, MonthlyRental, AirbnbRental
 from apps.properties.models import Property
 from .serializers import (
@@ -19,11 +20,16 @@ from .serializers import (
 class TenantViewSet(viewsets.ModelViewSet):
     queryset = Tenant.objects.all()
     serializer_class = TenantSerializer
+    permission_classes = [IsAdminUser]  # Solo admins pueden gestionar tenants
 
 
 class RentalViewSet(viewsets.ModelViewSet):
     """
     ViewSet para consultar rentals con filtros avanzados
+    
+    PERMISOS:
+    - Admins: Acceso completo (CRUD)
+    - Clientes: Solo lectura de sus propios rentals
     
     ENDPOINTS:
     - GET /api/rentals/ - Listar todos los rentals
@@ -31,16 +37,17 @@ class RentalViewSet(viewsets.ModelViewSet):
     - GET /api/rentals/ending_soon/ - Rentals que terminan pronto
     
     FILTROS DISPONIBLES:
-    - ?status=ocuppied - Filtrar por estado (ocuppied/available)
+    - ?status=occupied - Filtrar por estado (occupied/available)
     - ?rental_type=monthly - Filtrar por tipo (monthly/airbnb)
-    - ?ending_in_days=30 - Rentals que terminan en X días (solo aplica a status=ocuppied)
+    - ?ending_in_days=30 - Rentals que terminan en X días (solo aplica a status=occupied)
     
     EJEMPLOS:
-    - GET /api/rentals/?status=ocuppied&rental_type=monthly
+    - GET /api/rentals/?status=occupied&rental_type=monthly
     - GET /api/rentals/?ending_in_days=15
     - GET /api/rentals/ending_soon/
     """
     queryset = Rental.objects.all()
+    permission_classes = [IsAdminOrReadOnlyClient]
     
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -50,8 +57,16 @@ class RentalViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Aplicar filtros a la consulta de rentals
+        Los clientes solo ven sus propios rentals
         """
         queryset = Rental.objects.all()
+        
+        # Filtrar por rol: clientes solo ven sus rentals
+        if hasattr(self.request.user, 'userrole_set'):
+            user_roles = self.request.user.userrole_set.values_list('role__name', flat=True)
+            if 'cliente' in user_roles:
+                # Clientes solo ven sus propios rentals
+                queryset = queryset.filter(tenant__user=self.request.user)
         
         # Filtro por status
         status_param = self.request.query_params.get('status', None)
@@ -72,7 +87,7 @@ class RentalViewSet(viewsets.ModelViewSet):
                 end_date = today + timedelta(days=days)
                 
                 queryset = queryset.filter(
-                    status='ocuppied',
+                    status='occupied',
                     check_out__gte=today,
                     check_out__lte=end_date
                 )
@@ -101,7 +116,7 @@ class RentalViewSet(viewsets.ModelViewSet):
         end_date = today + timedelta(days=days)
         
         queryset = Rental.objects.filter(
-            status='ocuppied',
+            status='occupied',
             check_out__gte=today,
             check_out__lte=end_date
         )
@@ -137,15 +152,15 @@ class PropertyAddRentalView(generics.CreateAPIView):
                 'error': f'This property is for "{property_instance.get_use_display()}" use. Only rental properties can have rentals.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Validar que no haya un rental activo (ocuppied) en esta propiedad
+        # Validar que no haya un rental activo (occupied) en esta propiedad
         active_rental = Rental.objects.filter(
             property=property_instance,
-            status='ocuppied'
+            status='occupied'
         ).first()
         
         if active_rental:
             return Response({
-                'error': f'Esta propiedad ya tiene un rental activo (ocuppied). Debes finalizar o cancelar el rental actual antes de crear uno nuevo.',
+                'error': f'Esta propiedad ya tiene un rental activo (occupied). Debes finalizar o cancelar el rental actual antes de crear uno nuevo.',
                 'active_rental_id': active_rental.id,
                 'tenant': active_rental.tenant.full_name
             }, status=status.HTTP_400_BAD_REQUEST)
@@ -156,7 +171,7 @@ class PropertyAddRentalView(generics.CreateAPIView):
             rental = serializer.save(property=property_instance)
             # Devolver la respuesta con el serializer completo
             response_serializer = RentalDetailSerializer(rental, context={'request': request})
-            status_msg = 'ocuppied' if rental.status == 'ocuppied' else 'available'
+            status_msg = 'occupied' if rental.status == 'occupied' else 'available'
             return Response({
                 'message': f'Rental creado exitosamente para {property_instance.name}. Estado: {status_msg}',
                 'rental': response_serializer.data
@@ -280,7 +295,7 @@ class RentalsDashboardStatsView(APIView):
     """Vista para obtener estadísticas de rentals para el dashboard
     
     Retorna contadores agrupados por tipo de rental (monthly/airbnb) y estado:
-    - active (ocuppied): Rentals ocupados actualmente
+    - active (occupied): Rentals ocupados actualmente
     - available: Rentals disponibles
     - ending_soon: Rentals que terminan en los próximos 30 días
     
@@ -305,7 +320,7 @@ class RentalsDashboardStatsView(APIView):
         # Contadores para rentals mensuales
         monthly_active = Rental.objects.filter(
             rental_type='monthly',
-            status='ocuppied'
+            status='occupied'
         ).count()
         
         monthly_available = Rental.objects.filter(
@@ -315,7 +330,7 @@ class RentalsDashboardStatsView(APIView):
         
         monthly_ending_soon = Rental.objects.filter(
             rental_type='monthly',
-            status='ocuppied',
+            status='occupied',
             check_out__gte=today,
             check_out__lte=ending_soon_date
         ).count()
@@ -323,7 +338,7 @@ class RentalsDashboardStatsView(APIView):
         # Contadores para rentals Airbnb
         airbnb_active = Rental.objects.filter(
             rental_type='airbnb',
-            status='ocuppied'
+            status='occupied'
         ).count()
         
         airbnb_available = Rental.objects.filter(
@@ -333,7 +348,7 @@ class RentalsDashboardStatsView(APIView):
         
         airbnb_ending_soon = Rental.objects.filter(
             rental_type='airbnb',
-            status='ocuppied',
+            status='occupied',
             check_out__gte=today,
             check_out__lte=ending_soon_date
         ).count()

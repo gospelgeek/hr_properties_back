@@ -4,13 +4,11 @@ from django.db import models
 class Role(models.Model):
     ADMIN = 'admin'
     CLIENTE = 'cliente'
-    SOPORTE = 'soporte'
     INVITADO = 'invitado'
     
     ROLE_CHOICES = [
         (ADMIN, 'Administrator'),
         (CLIENTE, 'Client'),
-        (SOPORTE, 'Support'),
         (INVITADO, 'Guest'),
     ]
     

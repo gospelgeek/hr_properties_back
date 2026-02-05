@@ -115,11 +115,18 @@ GET /api/properties/1/repairs_cost/
     RESPUESTA:
     {
         "obligations": {
-            "total_count": 45,
+            "total_count": 45,           // Total histórico
             "total_amount": 15000000.00,
             "total_paid": 8500000.00,
             "pending": 6500000.00,
-            "upcoming_due": 3
+            "upcoming_due": 3            // Vencen en 7 días
+        },
+        "obligations_month": {
+            "total_count": 12,           // Solo del mes actual
+            "total_amount": 2500000.00,
+            "total_paid": 1200000.00,
+            "pending": 1300000.00,
+            "upcoming_due": 1            // Del mes que vencen en 7 días
         },
         "properties": {
             "total": 12,
@@ -130,7 +137,13 @@ GET /api/properties/1/repairs_cost/
         "rentals": {
             "active": 6,
             "available": 2,
-            "ending_soon": 1
+            "ending_soon": 1,
+            "monthly_active": 4,         // Rentals mensuales activos
+            "monthly_available": 1,
+            "monthly_ending_soon": 1,
+            "airbnb_active": 2,          // Rentals Airbnb activos
+            "airbnb_available": 1,
+            "airbnb_ending_soon": 0
         },
         "monthly_summary": {
             "rental_income": 4500000.00,
@@ -142,8 +155,10 @@ GET /api/properties/1/repairs_cost/
     
     FUNCIONAMIENTO:
     - Calcula estadísticas en tiempo real
+    - obligations: Todos los históricos del sistema
+    - obligations_month: Solo obligaciones del mes actual
     - upcoming_due: obligaciones que vencen en 7 días
-    - ending_soon: rentals que terminan en 15 días
+    - ending_soon: rentals que terminan en 30 días
     - monthly_summary: datos del mes actual
     - Útil para mostrar en pantalla principal del sistema
 

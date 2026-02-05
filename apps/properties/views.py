@@ -2,7 +2,10 @@ from django.shortcuts import render, get_object_or_404
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 from django.db.models import Sum, Q
+
+from apps.users.permissions import IsAdminUser
 from .models import Property, PropertyLaw, Enser, EnserInventory, PropertyDetails, PropertyMedia
 from .serializers import (
     PropertySerializer, PropertyDetailSerializer, PropertyLawSerializer, EnserSerializer, 
@@ -16,21 +19,35 @@ from apps.maintenance.serializers import RepairSerializer, RepairCreateSerialize
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = Property.objects.filter(is_deleted__isnull=True)
     serializer_class = PropertySerializer
+    permission_classes = [IsAdminUser]  # Solo admins pueden gestionar propiedades
+    def get_permissions(self):
+        # Permitir acceso público solo si es un GET y rental_status=available
+        if (
+            self.action == 'list'
+            and self.request.method == 'GET'
+            and self.request.query_params.get('rental_status') == 'available'
+        ):
+            return [AllowAny()]
+        return [IsAdminUser()]
     
     def get_queryset(self):
         """
         Filtrar propiedades por múltiples criterios:
         - use: tipo de uso de la propiedad (rental, personal, commercial)
-        - rental_status: estado del rental (active/ocuppied, available) - puede ser múltiple
+        - rental_status: estado del rental (active/occupied, available, ending_soon) - puede ser múltiple
         - rental_type: tipo de rental (monthly, airbnb) - puede ser múltiple
         
         Ejemplos de URLs:
         - /api/properties/?use=rental
         - /api/properties/?rental_status=active
+        - /api/properties/?rental_status=ending_soon
         - /api/properties/?rental_type=monthly
         - /api/properties/?use=rental&rental_status=active,available&rental_type=airbnb
+        - /api/properties/?rental_status=ending_soon&rental_type=monthly
         """
         from apps.rentals.models import Rental
+        from django.utils import timezone
+        from datetime import timedelta
         
         queryset = Property.objects.filter(is_deleted__isnull=True)
         
@@ -39,29 +56,43 @@ class PropertyViewSet(viewsets.ModelViewSet):
         if use_type:
             queryset = queryset.filter(use=use_type)
         
-        # Filtro por rental_status (puede ser múltiple: "active" o "available" o "active,available")
+        # Filtro por rental_status (puede ser múltiple: "active", "available", "ending_soon")
         rental_status = self.request.query_params.get('rental_status', None)
         if rental_status:
             statuses = [s.strip() for s in rental_status.split(',')]
             
-            # Mapear 'active' a 'ocuppied' (el valor real en la BD)
+            # Verificar si incluye ending_soon
+            has_ending_soon = 'ending_soon' in statuses
+            
+            # Mapear 'active' a 'occupied' (el valor real en la BD)
             mapped_statuses = []
             for status in statuses:
-                if status == 'active' or status == 'ocuppied':
-                    mapped_statuses.append('ocuppied')
-                else:
+                if status == 'active' or status == 'occupied':
+                    mapped_statuses.append('occupied')
+                elif status != 'ending_soon':  # No agregar ending_soon a mapped_statuses
                     mapped_statuses.append(status)
             
-            if 'available' in mapped_statuses and 'ocuppied' in mapped_statuses:
+            # Manejar ending_soon
+            if has_ending_soon:
+                today = timezone.now().date()
+                ending_soon_date = today + timedelta(days=30)
+                
+                # Propiedades con rentals que terminan pronto (próximos 30 días)
+                queryset = queryset.filter(
+                    rentals__status='occupied',
+                    rentals__check_out__gte=today,
+                    rentals__check_out__lte=ending_soon_date
+                ).distinct()
+            elif 'available' in mapped_statuses and 'occupied' in mapped_statuses:
                 # Si busca ambos, solo filtra por propiedades de rental
                 queryset = queryset.filter(use='rental')
-            elif 'ocuppied' in mapped_statuses:
-                # Propiedades con rental activo (ocuppied)
-                queryset = queryset.filter(rentals__status='ocuppied').distinct()
+            elif 'occupied' in mapped_statuses:
+                # Propiedades con rental activo (occupied)
+                queryset = queryset.filter(rentals__status='occupied').distinct()
             elif 'available' in mapped_statuses:
                 # Propiedades de rental sin rental activo o con rental available
                 queryset = queryset.filter(use='rental').exclude(
-                    rentals__status='ocuppied'
+                    rentals__status='occupied'
                 ).distinct()
         
         # Filtro por rental_type (puede ser múltiple: "monthly" o "airbnb" o "monthly,airbnb")

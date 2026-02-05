@@ -126,16 +126,16 @@ class RentalCreateSerializer(serializers.ModelSerializer):
         status = data.get('status', 'available')
         tenant = data.get('tenant')
         
-        # Validar que si status='ocuppied', se requiere tenant
-        if status == 'ocuppied' and not tenant:
+        # Validar que si status='occupied', se requiere tenant
+        if status == 'occupied' and not tenant:
             raise serializers.ValidationError({
-                'tenant': 'Se requiere un inquilino cuando el estado es "ocuppied"'
+                'tenant': 'Se requiere un inquilino cuando el estado es "occupied"'
             })
         
-        # Validar que si hay tenant, el status debe ser 'ocuppied'
-        if tenant and status != 'ocuppied':
+        # Validar que si hay tenant, el status debe ser 'occupied'
+        if tenant and status != 'occupied':
             raise serializers.ValidationError({
-                'status': 'Si hay un inquilino asignado, el estado debe ser "ocuppied"'
+                'status': 'Si hay un inquilino asignado, el estado debe ser "occupied"'
             })
         
         if rental_type == 'monthly' and not monthly_data:
