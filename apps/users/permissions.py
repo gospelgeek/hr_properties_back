@@ -94,6 +94,32 @@ class IsAdminOrReadOnlyClient(permissions.BasePermission):
         return False
 
 
+class IsAdminOrPublicReadOnly(permissions.BasePermission):
+    """
+    Permiso para endpoints de propiedades:
+    - Admins: Acceso completo (CRUD)
+    - Usuarios anónimos: Solo lectura de propiedades con rental_status=available
+    - Otros: Sin acceso
+    """
+    def has_permission(self, request, view):
+        # Si el usuario está autenticado y es admin, tiene acceso completo
+        if request.user and request.user.is_authenticated:
+            user_roles = request.user.userrole_set.values_list('role__name', flat=True)
+            if 'admin' in user_roles:
+                return True
+            # Clientes autenticados no tienen acceso a este endpoint
+            return False
+        
+        # Usuarios no autenticados solo pueden ver propiedades disponibles (GET)
+        if request.method in permissions.SAFE_METHODS:
+            # Verificar si está consultando propiedades disponibles
+            rental_status = request.query_params.get('rental_status')
+            if rental_status and 'available' in rental_status:
+                return True
+        
+        return False
+
+
 '''
 ═══════════════════════════════════════════════════════════════════════
 📝 USO DE PERMISOS EN VIEWSETS

@@ -65,8 +65,9 @@ class RentalViewSet(viewsets.ModelViewSet):
         if hasattr(self.request.user, 'userrole_set'):
             user_roles = self.request.user.userrole_set.values_list('role__name', flat=True)
             if 'cliente' in user_roles:
-                # Clientes solo ven sus propios rentals
-                queryset = queryset.filter(tenant__user=self.request.user)
+                tenant = Tenant.objects.filter(phone1=self.request.user.username).first()
+                if tenant:
+                    queryset = queryset.filter(tenant=tenant)
         
         # Filtro por status
         status_param = self.request.query_params.get('status', None)
@@ -153,16 +154,16 @@ class PropertyAddRentalView(generics.CreateAPIView):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Validar que no haya un rental activo (occupied) en esta propiedad
-        active_rental = Rental.objects.filter(
+        occupied_rental = Rental.objects.filter(
             property=property_instance,
             status='occupied'
         ).first()
         
-        if active_rental:
+        if occupied_rental:
             return Response({
                 'error': f'Esta propiedad ya tiene un rental activo (occupied). Debes finalizar o cancelar el rental actual antes de crear uno nuevo.',
-                'active_rental_id': active_rental.id,
-                'tenant': active_rental.tenant.full_name
+                'occupied_rental_id': occupied_rental.id,
+                'tenant': occupied_rental.tenant.full_name
             }, status=status.HTTP_400_BAD_REQUEST)
         
         serializer = self.get_serializer(data=request.data)
@@ -295,17 +296,17 @@ class RentalsDashboardStatsView(APIView):
     """Vista para obtener estadísticas de rentals para el dashboard
     
     Retorna contadores agrupados por tipo de rental (monthly/airbnb) y estado:
-    - active (occupied): Rentals ocupados actualmente
+    - occupied (occupied): Rentals ocupados actualmente
     - available: Rentals disponibles
     - ending_soon: Rentals que terminan en los próximos 30 días
     
     Ejemplo de respuesta:
     {
         "rentals": {
-            "monthly_active": 5,
+            "monthly_occupied": 5,
             "monthly_available": 2,
             "monthly_ending_soon": 1,
-            "airbnb_active": 8,
+            "airbnb_occupied": 8,
             "airbnb_available": 3,
             "airbnb_ending_soon": 2
         }
@@ -318,7 +319,7 @@ class RentalsDashboardStatsView(APIView):
         ending_soon_date = today + timedelta(days=30)
         
         # Contadores para rentals mensuales
-        monthly_active = Rental.objects.filter(
+        monthly_occupied = Rental.objects.filter(
             rental_type='monthly',
             status='occupied'
         ).count()
@@ -336,7 +337,7 @@ class RentalsDashboardStatsView(APIView):
         ).count()
         
         # Contadores para rentals Airbnb
-        airbnb_active = Rental.objects.filter(
+        airbnb_occupied = Rental.objects.filter(
             rental_type='airbnb',
             status='occupied'
         ).count()
@@ -355,10 +356,10 @@ class RentalsDashboardStatsView(APIView):
         
         return Response({
             "rentals": {
-                "monthly_active": monthly_active,
+                "monthly_occupied": monthly_occupied,
                 "monthly_available": monthly_available,
                 "monthly_ending_soon": monthly_ending_soon,
-                "airbnb_active": airbnb_active,
+                "airbnb_occupied": airbnb_occupied,
                 "airbnb_available": airbnb_available,
                 "airbnb_ending_soon": airbnb_ending_soon
             }
