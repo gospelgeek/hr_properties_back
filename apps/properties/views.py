@@ -11,8 +11,10 @@ from .serializers import (
     PropertySerializer, PropertyDetailSerializer, PropertyLawSerializer, EnserSerializer, 
     EnserInventorySerializer, PropertyDetailsSerializer, PropertyMediaSerializer, 
     PropertyMediaListSerializer, PropertyMediaUploadSerializer, EnserInventoryCreateSerializer,
-    EnserInventoryDetailSerializer, EnserCreateAndAddSerializer, PropertyLawCreateSerializer
+    EnserInventoryDetailSerializer, EnserCreateAndAddSerializer, PropertyLawCreateSerializer,
 )
+from apps.finance.serializers import PropertyPaymentSerializer, ObligationDetailSerializer
+from apps.rentals.serializers import RentalPaymentSerializer
 from apps.maintenance.models import Repair
 from apps.maintenance.serializers import RepairSerializer, RepairCreateSerializer
 
@@ -307,7 +309,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
             "balance": 3000000.00
         }
         """
-        from apps.finance.models import PropertyPayment
+        from apps.finance.models import PropertyPayment, Obligation
         from apps.rentals.models import RentalPayment
         
         property_instance = self.get_object()
@@ -315,31 +317,40 @@ class PropertyViewSet(viewsets.ModelViewSet):
         # INGRESOS - Pagos de rentals
         rental_payments = RentalPayment.objects.filter(
             rental__property=property_instance
-        ).aggregate(total=Sum('amount'))['total'] or 0
+        )
+        rental_payments_total = rental_payments.aggregate(total=Sum('amount'))['total'] or 0
         
         # GASTOS - Obligaciones pagadas
         obligation_payments = PropertyPayment.objects.filter(
             obligation__property=property_instance
-        ).aggregate(total=Sum('amount'))['total'] or 0
+        )
+        obligation_payments_total = obligation_payments.aggregate(total=Sum('amount'))['total'] or 0
+        
+        obligations = Obligation.objects.filter(property=property_instance)
         
         # GASTOS - Reparaciones
         repairs_cost = Repair.objects.filter(
             property=property_instance
-        ).aggregate(total=Sum('cost'))['total'] or 0
+        )
+        repairs_total= repairs_cost.aggregate(total=Sum('cost'))['total'] or 0
         
-        total_income = rental_payments
-        total_expenses = obligation_payments + repairs_cost
+        total_income = rental_payments_total
+        total_expenses = obligation_payments_total + repairs_total
         balance = total_income - total_expenses
         
         return Response({
-            'income': {
-                'rental_payments': rental_payments,
-                'total_income': total_income
+             'income': {
+                'total': total_income,
+                'rental_payments': RentalPaymentSerializer(rental_payments, many=True).data,
             },
             'expenses': {
-                'obligations': obligation_payments,
-                'repairs': repairs_cost,
-                'total_expenses': total_expenses
+                'total': total_expenses,
+                'obligation_payments': PropertyPaymentSerializer(obligation_payments, many=True).data,
+                'repairs': RepairSerializer(repairs_cost, many=True).data,
+            },
+            'obligations': {
+                'total': obligations.aggregate(total=Sum('amount'))['total'] or 0,
+                'items': ObligationDetailSerializer(obligations, many=True).data,
             },
             'balance': balance
         })

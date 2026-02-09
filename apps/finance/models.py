@@ -96,6 +96,7 @@ class PaymentMethod(models.Model):
         ('transfer', 'Transfer'),
         ('check', 'Check'),
         ('card', 'Card'),
+        ('zelle', 'Zelle'),
     ]
     
     id = models.AutoField(primary_key=True)
@@ -116,7 +117,7 @@ class PaymentMethod(models.Model):
 
 class PropertyPayment(models.Model):
     """Pagos de obligaciones de propiedades"""
-    LOCATION_CHOICES = [('office', 'Office'), ('daycare', 'Daycare')]
+    LOCATION_CHOICES = [('office', 'Office'), ('daycare', 'Daycare'), ('online', 'Online')]
     
     id = models.AutoField(primary_key=True)
     obligation = models.ForeignKey(
@@ -134,7 +135,7 @@ class PropertyPayment(models.Model):
     )
     payment_location = models.CharField(
         max_length=255,
-        default="office",
+        default="online",
         choices=LOCATION_CHOICES,
         verbose_name='Payment Location'
     )
