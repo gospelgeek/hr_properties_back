@@ -162,6 +162,8 @@ class GoogleLoginView(APIView):
             })
             
         except ValueError as e:
+            print(f"Error verificando token de Google: {e}")
+            print("client id", os.getenv('GOOGLE_OAUTH_CLIENT_ID'))
             return Response({
                 'error': 'Token de Google inválido'
             }, status=status.HTTP_401_UNAUTHORIZED)

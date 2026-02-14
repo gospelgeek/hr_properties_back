@@ -9,9 +9,9 @@ def create_initial_obligation_types(apps, schema_editor):
     
     # Tipos basados en OBLIGATION_TYPE_CHOICES del modelo
     obligation_types = [
-        ('tax', 'Impuesto'),
-        ('seguro', 'Seguro'),
-        ('cuota', 'Cuota'),
+        ('tax', 'Tax'),
+        ('insurance', 'Insurance'),
+        ('fee', 'Fee'),
     ]
     
     for code, label in obligation_types:
@@ -24,7 +24,7 @@ def create_initial_obligation_types(apps, schema_editor):
 def reverse_population(apps, schema_editor):
     """Eliminar los tipos creados si se revierte la migración"""
     ObligationType = apps.get_model('finance', 'ObligationType')
-    ObligationType.objects.filter(name__in=['tax', 'seguro', 'cuota']).delete()
+    ObligationType.objects.filter(name__in=['tax', 'insurance', 'fee']).delete()
 
 
 class Migration(migrations.Migration):

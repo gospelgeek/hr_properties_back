@@ -5,14 +5,30 @@ djangorestframework>=3.14.0
 # Authentication
 djangorestframework-simplejwt>=5.3.0
 google-auth>=2.23.0
+dj-rest-auth>=5.0.0
 
 # Utilities
 django-filter>=24.2
 python-decouple>=3.8
+python-dotenv>=1.0.0
 Pillow>=10.0.0
+django-cors-headers>=4.3.0
 
 # Database
-psycopg2-binary>=2.9.0  # PostgreSQL (si se usa en producción)
+psycopg2-binary>=2.9.0  # PostgreSQL (producción recomendada)
+
+# Email (opcional - elegir uno)
+# django-sendgrid-v5>=1.2.0  # SendGrid (recomendado)
+# sendgrid>=6.10.0
 
 # Development
 coverage>=7.0.0
+
+# Production
+gunicorn>=21.2.0  # Servidor WSGI para producción
+whitenoise>=6.6.0  # Servir archivos estáticos
+
+# Optional Production
+# django-ratelimit>=4.1.0  # Rate limiting
+# sentry-sdk>=1.40.0  # Monitoreo de errores
+# drf-spectacular>=0.27.0  # Documentación API

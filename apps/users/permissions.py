@@ -85,7 +85,7 @@ class IsAdminOrReadOnlyClient(permissions.BasePermission):
             # Esto debe adaptarse según el modelo
             # Por ejemplo, si es un Rental, verificar que rental.tenant.user == request.user
             if hasattr(obj, 'tenant'):
-                return obj.tenant.user == request.user
+                return obj.tenant.phone1 == request.user.username
             
             # Si es el propio tenant
             if hasattr(obj, 'user'):

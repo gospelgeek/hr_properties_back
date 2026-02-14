@@ -1,0 +1,26 @@
+name: Deploy to Coolify
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Permite ejecutar manualmente
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Trigger Coolify deployment
+        run: |
+          curl -X POST "${{ secrets.COOLIFY_WEBHOOK_URL }}"
+      
+      - name: Notify deployment
+        run: echo "Deployment triggered successfully"
+
+# CONFIGURACIÓN:
+# 1. Ve a GitHub: Settings → Secrets and variables → Actions
+# 2. Agrega COOLIFY_WEBHOOK_URL (obtenlo desde el panel de Coolify)
+# 3. Cada push a main disparará el deploy automáticamente

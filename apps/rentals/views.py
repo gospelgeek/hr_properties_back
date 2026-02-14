@@ -132,6 +132,102 @@ class RentalViewSet(viewsets.ModelViewSet):
             'days': days,
             'rentals': serializer.data
         })
+    
+    @action(detail=True, methods=['get'], url_path='payments')
+    def payments(self, request, pk=None):
+        """
+        📋 Obtener todos los pagos de un rental específico (SOLO LECTURA)
+        
+        ENDPOINT:
+            GET /api/rentals/{id}/payments/
+        
+        PERMISOS:
+            ✅ Admins: Pueden ver todos los pagos de cualquier rental
+            ✅ Clientes: Solo pueden ver pagos de sus propios rentals
+            ❌ Clientes NO pueden crear, editar ni eliminar pagos (solo admins)
+        
+        EJEMPLO DE RESPUESTA:
+        {
+            "count": 3,                    // Total de pagos realizados
+            "total_paid": 4500000.00,      // Suma total de todos los pagos
+            "rental": {                    // Información del rental
+                "id": 5,
+                "property": {
+                    "id": 2,
+                    "address": "Calle 123 #45-67"
+                },
+                "tenant": {
+                    "id": 3,
+                    "phone1": "3001234567",
+                    "email": "tenant@example.com"
+                },
+                "rental_type": "monthly",
+                "status": "occupied",
+                "amount": 1500000.00,
+                "check_in": "2026-01-01",
+                "check_out": "2026-07-01"
+            },
+            "payments": [                 // Lista de todos los pagos
+                {
+                    "id": 12,
+                    "date": "2026-02-01",
+                    "amount": 1500000.00,
+                    "payment_method": {
+                        "id": 2,
+                        "name": "transfer"
+                    },
+                    "voucher_url": "http://example.com/vouchers/voucher_12.pdf",
+                    "notes": "Pago mes de febrero"
+                },
+                {
+                    "id": 11,
+                    "date": "2026-01-01",
+                    "amount": 1500000.00,
+                    "payment_method": {
+                        "id": 1,
+                        "name": "cash"
+                    },
+                    "voucher_url": null,
+                    "notes": "Pago mes de enero"
+                }
+            ]
+        }
+        
+        NOTA: Para crear, editar o eliminar pagos, el admin debe usar:
+            POST   /api/properties/{property_id}/rentals/{rental_id}/add_payment/
+            PATCH  /api/properties/{property_id}/rentals/{rental_id}/payments/{payment_id}/
+            DELETE /api/properties/{property_id}/rentals/{rental_id}/payments/{payment_id}/
+        """
+        rental = self.get_object()  # Esto ya aplica las validaciones de permisos del get_queryset
+        
+        # Los clientes solo pueden ver pagos de sus propios rentals
+        if hasattr(request.user, 'userrole_set'):
+            user_roles = request.user.userrole_set.values_list('role__name', flat=True)
+            if 'cliente' in user_roles:
+                tenant = Tenant.objects.filter(phone1=request.user.username).first()
+                if not tenant or rental.tenant != tenant:
+                    return Response(
+                        {'detail': 'No tienes permiso para ver estos pagos.'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+        
+        # Obtener pagos del rental
+        payments = RentalPayment.objects.filter(rental=rental).order_by('-date')
+        
+        # Calcular total pagado
+        from django.db.models import Sum
+        total_paid = payments.aggregate(total=Sum('amount'))['total'] or 0
+        
+        # Serializar
+        payments_serializer = RentalPaymentSerializer(payments, many=True, context={'request': request})
+        rental_serializer = RentalSerializer(rental, context={'request': request})
+        
+        return Response({
+            'count': payments.count(),
+            'total_paid': float(total_paid),
+            'rental': rental_serializer.data,
+            'payments': payments_serializer.data
+        })
 
 
 class PropertyAddRentalView(generics.CreateAPIView):
@@ -223,8 +319,13 @@ class PropertyRentalDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class RentalAddPaymentView(generics.CreateAPIView):
-    """Vista para añadir un pago a un rental específico"""
+    """
+    Vista para añadir un pago a un rental específico
+    
+    PERMISOS: Solo admins pueden crear pagos
+    """
     serializer_class = RentalPaymentCreateSerializer
+    permission_classes = [IsAdminUser]  # Solo admins pueden crear pagos
     
     def get_rental(self):
         property_id = self.kwargs.get('property_id')
@@ -260,8 +361,14 @@ class RentalAddPaymentView(generics.CreateAPIView):
 
 
 class RentalPaymentsListView(generics.ListAPIView):
-    """Vista para listar todos los pagos de un rental"""
+    """
+    Vista para listar todos los pagos de un rental
+    
+    PERMISOS: Admins y clientes pueden ver (cliente solo sus propios rentals)
+    RECOMENDACIÓN: Usar GET /api/rentals/{id}/payments/ en su lugar
+    """
     serializer_class = RentalPaymentSerializer
+    permission_classes = [IsAdminOrReadOnlyClient]  # Lectura para clientes y admins
     
     def get_queryset(self):
         property_id = self.kwargs.get('property_id')
@@ -272,8 +379,13 @@ class RentalPaymentsListView(generics.ListAPIView):
 
 
 class RentalPaymentDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Vista para ver, editar o eliminar un pago específico de un rental"""
+    """
+    Vista para ver, editar o eliminar un pago específico de un rental
+    
+    PERMISOS: Solo admins pueden editar/eliminar pagos
+    """
     serializer_class = RentalPaymentSerializer
+    permission_classes = [IsAdminUser]  # Solo admins pueden editar/eliminar pagos
     
     def get_queryset(self):
         property_id = self.kwargs.get('property_id')

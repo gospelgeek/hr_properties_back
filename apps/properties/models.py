@@ -1,7 +1,33 @@
 from django.db import models
-
-# Create your models here.
 from django.utils import timezone
+import os
+
+
+def property_image_upload_to(instance, filename):
+    """Organiza imágenes de propiedades en carpetas por ID de propiedad"""
+    ext = os.path.splitext(filename)[1]
+    # Si la propiedad ya existe, usar su ID, sino usar 'temp'
+    property_id = instance.id if instance.id else 'temp'
+    return f'property_{property_id}/images/main{ext}'
+
+
+def property_law_upload_to(instance, filename):
+    """Organiza documentos legales en carpetas por ID de propiedad"""
+    # Sanitizar nombre del archivo
+    safe_filename = filename.replace(' ', '_')
+    return f'property_{instance.property.id}/laws/{safe_filename}'
+
+
+def property_media_upload_to(instance, filename):
+    """Organiza media de propiedades en carpetas por ID de propiedad"""
+    safe_filename = filename.replace(' ', '_')
+    return f'property_{instance.property.id}/media/{safe_filename}'
+
+
+def enser_inventory_upload_to(instance, filename):
+    """Organiza inventario de enseres en carpetas por ID de propiedad"""
+    safe_filename = filename.replace(' ', '_')
+    return f'property_{instance.property.id}/ensers/{safe_filename}'
 
 
 class Property(models.Model):
@@ -32,6 +58,7 @@ class Property(models.Model):
     state = models.CharField(max_length=100, db_column='state', verbose_name='State', default='Unknown')
     city = models.CharField(max_length=100, verbose_name='City')
     image_url = models.FileField(
+        upload_to=property_image_upload_to,
         max_length=500,
         blank=True,
         verbose_name='Featured Image',
@@ -111,7 +138,7 @@ class PropertyMedia(models.Model):
         choices=MEDIA_TYPE_CHOICES,
         verbose_name='Tipo de medio'
     )
-    url = models.FileField(upload_to='property_media/', verbose_name='URL')
+    url = models.FileField(upload_to=property_media_upload_to, verbose_name='URL')
     uploaded_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
@@ -132,7 +159,7 @@ class PropertyLaw(models.Model):
         related_name='laws'
     )
     entity_name = models.CharField(max_length=255, verbose_name='Nombre de entidad')
-    url = models.FileField(upload_to='property_laws/', blank=True, verbose_name='URL del documento')
+    url = models.FileField(upload_to=property_law_upload_to, blank=True, verbose_name='URL del documento')
     original_amount = models.DecimalField(
         max_digits=12, 
         decimal_places=2,
@@ -189,7 +216,7 @@ class EnserInventory(models.Model):
         db_column='id_enser'
     )
     url_media = models.FileField(
-        upload_to='enser_inventory/',
+        upload_to=enser_inventory_upload_to,
         blank=True, 
         null=True, 
         db_column='url_media',
