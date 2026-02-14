@@ -3,6 +3,21 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from apps.properties.models import Property
 from apps.finance.models import PaymentMethod
+import os
+
+
+def rental_payment_voucher_upload_to(instance, filename):
+    """Organiza vouchers de pagos de renta en carpetas por ID de propiedad"""
+    safe_filename = filename.replace(' ', '_')
+    property_id = instance.rental.property.id
+    return f'property_{property_id}/rentals/payments/{safe_filename}'
+
+
+def monthly_rental_files_upload_to(instance, filename):
+    """Organiza archivos de rentas mensuales en carpetas por ID de propiedad"""
+    safe_filename = filename.replace(' ', '_')
+    property_id = instance.rental.property.id
+    return f'property_{property_id}/rentals/contracts/{safe_filename}'
 
 class Tenant(models.Model):
     """
@@ -151,6 +166,7 @@ class RentalPayment(models.Model):
         verbose_name='Amount'
     )
     voucher_url = models.FileField(
+        upload_to=rental_payment_voucher_upload_to,
         blank=True,
         db_column='voucher_url',
         verbose_name='Voucher URL'
@@ -187,6 +203,7 @@ class MonthlyRental(models.Model):
         verbose_name='Is Refundable'
     )
     url_files = models.FileField(
+        upload_to=monthly_rental_files_upload_to,
         blank=True,
         db_column='urlFiles',
         verbose_name='Files URL'

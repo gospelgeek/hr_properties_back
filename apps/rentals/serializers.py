@@ -8,7 +8,7 @@ class TenantSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Tenant
-        fields = ['id', 'email', 'name', 'lastname', 'phone1', 'phone2', 'observations', 'full_name']
+        fields = ['id', 'email', 'name', 'lastname', 'phone1', 'phone2', 'birth_year', 'observations', 'full_name']
         read_only_fields = ['id']
 
 

@@ -5,45 +5,158 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.db.models import Sum, Q
 
-from apps.users.permissions import IsAdminUser
+from apps.users.permissions import IsAdminUser, IsAdminOrPublicReadOnly
 from .models import Property, PropertyLaw, Enser, EnserInventory, PropertyDetails, PropertyMedia
 from .serializers import (
     PropertySerializer, PropertyDetailSerializer, PropertyLawSerializer, EnserSerializer, 
     EnserInventorySerializer, PropertyDetailsSerializer, PropertyMediaSerializer, 
     PropertyMediaListSerializer, PropertyMediaUploadSerializer, EnserInventoryCreateSerializer,
-    EnserInventoryDetailSerializer, EnserCreateAndAddSerializer, PropertyLawCreateSerializer
+    EnserInventoryDetailSerializer, EnserCreateAndAddSerializer, PropertyLawCreateSerializer,
 )
+from apps.finance.serializers import PropertyPaymentSerializer, ObligationDetailSerializer
+from apps.rentals.serializers import RentalPaymentSerializer
 from apps.maintenance.models import Repair
 from apps.maintenance.serializers import RepairSerializer, RepairCreateSerializer
 
+'''
+═══════════════════════════════════════════════════════════════════════════════════
+🏠 PROPERTY VIEWSET - ENDPOINTS Y PERMISOS
+═══════════════════════════════════════════════════════════════════════════════════
+
+📋 LISTADO DE PROPIEDADES:
+   GET /api/properties/
+   
+   🔓 PÚBLICO (sin autenticación):
+      - GET /api/properties/?rental_status=available
+        → Lista solo propiedades disponibles para alquilar (sin rentals activos)
+        → No muestra información financiera
+        → Incluye: ubicación, detalles, multimedia, enseres, reparaciones
+   
+   🔒 ADMIN (requiere autenticación):
+      - GET /api/properties/
+        → Lista TODAS las propiedades (sin filtros o con otros filtros)
+      - GET /api/properties/?rental_status=occupied
+        → Propiedades con rental activo (ocupadas)
+      - GET /api/properties/?rental_status=ending_soon
+        → Propiedades cuyo rental termina en los próximos 30 días
+      - GET /api/properties/?use=rental
+        → Filtrar por tipo de uso (rental, personal, commercial)
+      - GET /api/properties/?rental_type=monthly,airbnb
+        → Filtrar por tipo de rental
+
+📄 DETALLE DE PROPIEDAD:
+   GET /api/properties/{id}/
+   
+   🔓 PÚBLICO (sin autenticación):
+      - Solo si la propiedad está disponible (available)
+      - No muestra información financiera (repairs_cost, financials)
+      - Incluye: detalles, ubicación, multimedia, enseres, reparaciones
+   
+   🔒 ADMIN (requiere autenticación):
+      - Acceso completo a cualquier propiedad
+      - Incluye toda la información financiera
+
+⚙️ ACCIONES SOBRE PROPIEDADES:
+   🔒 SOLO ADMIN (requiere autenticación):
+      - POST /api/properties/ → Crear propiedad
+      - PUT/PATCH /api/properties/{id}/ → Actualizar propiedad
+      - DELETE /api/properties/{id}/ → Soft delete propiedad
+      - POST /api/properties/{id}/soft_delete/ → Soft delete explícito
+      - POST /api/properties/{id}/restore/ → Restaurar propiedad eliminada
+      - GET /api/properties/deleted/ → Listar propiedades eliminadas
+
+📊 INFORMACIÓN FINANCIERA:
+   🔒 SOLO ADMIN (requiere autenticación):
+      - GET /api/properties/{id}/repairs_cost/ → Total de reparaciones
+      - GET /api/properties/{id}/financials/ → Resumen financiero completo
+
+📚 OTRAS RUTAS:
+   🔒 SOLO ADMIN:
+      - GET /api/properties/choices/ → Opciones de campos choice
+      - GET /api/properties/{id}/laws/ → Leyes/regulaciones de la propiedad
+
+═══════════════════════════════════════════════════════════════════════════════════
+📌 NOTA IMPORTANTE SOBRE ESTADOS:
+═══════════════════════════════════════════════════════════════════════════════════
+
+❌ NO USAR 'active' - Este campo ha sido eliminado
+✅ USAR 'occupied' y 'available':
+
+   - available: Propiedad de tipo 'rental' SIN rentals activos
+                → Puede mostrarse públicamente
+                → Acepta nuevos rentals
+   
+   - occupied: Propiedad de tipo 'rental' CON rental activo (status='occupied')
+               → Solo admins pueden verla
+               → NO acepta nuevos rentals hasta que el actual termine
+   
+   - ending_soon: Propiedad ocupada cuyo rental termina en los próximos 30 días
+                  → Útil para planificar próximas disponibilidades
+
+🗑️ SOFT DELETE:
+   - Las propiedades con is_deleted != NULL están marcadas como eliminadas
+   - NO aparecen en ninguna consulta (ni listados, ni conteos, ni estadísticas)
+   - NO se consideran para cálculos financieros ni dashboard
+   - Pueden restaurarse con POST /api/properties/{id}/restore/
+
+═══════════════════════════════════════════════════════════════════════════════════
+'''
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = Property.objects.filter(is_deleted__isnull=True)
     serializer_class = PropertySerializer
-    permission_classes = [IsAdminUser]  # Solo admins pueden gestionar propiedades
+    permission_classes = [IsAdminUser]
+    
     def get_permissions(self):
-        # Permitir acceso público solo si es un GET y rental_status=available
-        if (
-            self.action == 'list'
-            and self.request.method == 'GET'
-            and self.request.query_params.get('rental_status') == 'available'
-        ):
-            return [AllowAny()]
+        """
+        Permisos dinámicos:
+        - Usuarios anónimos: pueden listar y ver detalles de propiedades disponibles
+        - Admins: acceso completo a todo
+        """
+        # Permitir acceso público a propiedades disponibles (list y retrieve)
+        if self.action in ['list', 'retrieve'] and self.request.method == 'GET':
+            rental_status = self.request.query_params.get('rental_status')
+            
+            # Si solicita propiedades disponibles, es público
+            if rental_status and 'available' in rental_status:
+                return [AllowAny()]
+            
+            # Si es retrieve, verificar si la propiedad es available
+            if self.action == 'retrieve':
+                try:
+                    property_id = self.kwargs.get('pk')
+                    if property_id:
+                        from apps.rentals.models import Rental
+                        property_obj = Property.objects.get(pk=property_id, is_deleted__isnull=True)
+                        # Verificar si la propiedad está disponible (sin rentals activos)
+                        has_occupied_rental = Rental.objects.filter(
+                            property=property_obj,
+                            status='occupied'
+                        ).exists()
+                        if not has_occupied_rental and property_obj.use == 'rental':
+                            return [AllowAny()]
+                except Property.DoesNotExist:
+                    pass
+        
+        # Resto de acciones requieren admin
         return [IsAdminUser()]
     
     def get_queryset(self):
         """
         Filtrar propiedades por múltiples criterios:
         - use: tipo de uso de la propiedad (rental, personal, commercial)
-        - rental_status: estado del rental (active/occupied, available, ending_soon) - puede ser múltiple
+        - rental_status: estado del rental (occupied, available, ending_soon) - puede ser múltiple
         - rental_type: tipo de rental (monthly, airbnb) - puede ser múltiple
         
         Ejemplos de URLs:
         - /api/properties/?use=rental
-        - /api/properties/?rental_status=active
-        - /api/properties/?rental_status=ending_soon
+        - /api/properties/?rental_status=occupied → Propiedades con rental activo
+        - /api/properties/?rental_status=available → Propiedades disponibles (PÚBLICO)
+        - /api/properties/?rental_status=ending_soon → Rentals que terminan en 30 días
         - /api/properties/?rental_type=monthly
-        - /api/properties/?use=rental&rental_status=active,available&rental_type=airbnb
+        - /api/properties/?use=rental&rental_status=occupied,available&rental_type=airbnb
         - /api/properties/?rental_status=ending_soon&rental_type=monthly
+        
+        ⚠️ IMPORTANTE: 'active' ya NO se usa, usar 'occupied' en su lugar
         """
         from apps.rentals.models import Rental
         from django.utils import timezone
@@ -56,7 +169,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
         if use_type:
             queryset = queryset.filter(use=use_type)
         
-        # Filtro por rental_status (puede ser múltiple: "active", "available", "ending_soon")
+        # Filtro por rental_status (puede ser múltiple: "occupied", "available", "ending_soon")
         rental_status = self.request.query_params.get('rental_status', None)
         if rental_status:
             statuses = [s.strip() for s in rental_status.split(',')]
@@ -64,10 +177,13 @@ class PropertyViewSet(viewsets.ModelViewSet):
             # Verificar si incluye ending_soon
             has_ending_soon = 'ending_soon' in statuses
             
-            # Mapear 'active' a 'occupied' (el valor real en la BD)
+            # Procesar los estados solicitados
+            # NOTA: 'occupied' es obsoleto, se mantiene compatibilidad mapéandolo a 'occupied'
             mapped_statuses = []
             for status in statuses:
-                if status == 'active' or status == 'occupied':
+                if status == 'occupied':  # Retrocompatibilidad
+                    mapped_statuses.append('occupied')
+                elif status == 'occupied':
                     mapped_statuses.append('occupied')
                 elif status != 'ending_soon':  # No agregar ending_soon a mapped_statuses
                     mapped_statuses.append(status)
@@ -146,9 +262,10 @@ class PropertyViewSet(viewsets.ModelViewSet):
             'type_building': [{'value': code, 'label': label} for code, label in Property.TYPE_BUILDINGS_CHOICES]
         })
     
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], permission_classes=[IsAdminUser])
     def repairs_cost(self, request, pk=None):
         """
+        🔒 SOLO ADMIN
         GET /api/properties/{id}/repairs_cost/
         
         Get total cost of all repairs for this property
@@ -170,9 +287,10 @@ class PropertyViewSet(viewsets.ModelViewSet):
             'repairs': RepairSerializer(repairs, many=True).data
         })
     
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], permission_classes=[IsAdminUser])
     def financials(self, request, pk=None):
         """
+        🔒 SOLO ADMIN
         GET /api/properties/{id}/financials/
         
         Get complete financial summary for this property
@@ -191,7 +309,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
             "balance": 3000000.00
         }
         """
-        from apps.finance.models import PropertyPayment
+        from apps.finance.models import PropertyPayment, Obligation
         from apps.rentals.models import RentalPayment
         
         property_instance = self.get_object()
@@ -199,31 +317,40 @@ class PropertyViewSet(viewsets.ModelViewSet):
         # INGRESOS - Pagos de rentals
         rental_payments = RentalPayment.objects.filter(
             rental__property=property_instance
-        ).aggregate(total=Sum('amount'))['total'] or 0
+        )
+        rental_payments_total = rental_payments.aggregate(total=Sum('amount'))['total'] or 0
         
         # GASTOS - Obligaciones pagadas
         obligation_payments = PropertyPayment.objects.filter(
             obligation__property=property_instance
-        ).aggregate(total=Sum('amount'))['total'] or 0
+        )
+        obligation_payments_total = obligation_payments.aggregate(total=Sum('amount'))['total'] or 0
+        
+        obligations = Obligation.objects.filter(property=property_instance)
         
         # GASTOS - Reparaciones
         repairs_cost = Repair.objects.filter(
             property=property_instance
-        ).aggregate(total=Sum('cost'))['total'] or 0
+        )
+        repairs_total= repairs_cost.aggregate(total=Sum('cost'))['total'] or 0
         
-        total_income = rental_payments
-        total_expenses = obligation_payments + repairs_cost
+        total_income = rental_payments_total
+        total_expenses = obligation_payments_total + repairs_total
         balance = total_income - total_expenses
         
         return Response({
-            'income': {
-                'rental_payments': rental_payments,
-                'total_income': total_income
+             'income': {
+                'total': total_income,
+                'rental_payments': RentalPaymentSerializer(rental_payments, many=True).data,
             },
             'expenses': {
-                'obligations': obligation_payments,
-                'repairs': repairs_cost,
-                'total_expenses': total_expenses
+                'total': total_expenses,
+                'obligation_payments': PropertyPaymentSerializer(obligation_payments, many=True).data,
+                'repairs': RepairSerializer(repairs_cost, many=True).data,
+            },
+            'obligations': {
+                'total': obligations.aggregate(total=Sum('amount'))['total'] or 0,
+                'items': ObligationDetailSerializer(obligations, many=True).data,
             },
             'balance': balance
         })

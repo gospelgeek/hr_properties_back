@@ -160,7 +160,18 @@ class RepairSerializer(serializers.ModelSerializer):
 
 
 class PropertyDetailSerializer(serializers.ModelSerializer):
-    """Serializer completo con detalles, media, inventario de enseres, reparaciones y leyes"""
+    """
+    Serializer completo con detalles, media, inventario de enseres, reparaciones y leyes
+    
+    🔓 ACCESO PÚBLICO (usuarios no autenticados):
+       - Solo para propiedades con rental_status=available
+       - NO incluye información financiera sensible
+       - Incluye: detalles, ubicación, multimedia, enseres (sin precios), reparaciones (sin costos)
+    
+    🔒 ACCESO ADMIN (usuarios autenticados como admin):
+       - Acceso completo a toda la información
+       - Incluye precios, costos, leyes/regulaciones, etc.
+    """
     details = PropertyDetailsSerializer(required=False)
     media = PropertyMediaSerializer(many=True, read_only=True)
     inventory = EnserInventoryDetailSerializer(many=True, read_only=True)
@@ -189,6 +200,33 @@ class PropertyDetailSerializer(serializers.ModelSerializer):
             'laws'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def to_representation(self, instance):
+        """
+        Personalizar la representación según el tipo de usuario:
+        - Usuarios no autenticados: Ocultar información financiera sensible
+        - Admins: Mostrar toda la información
+        """
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        
+        # Si no hay request o el usuario NO está autenticado
+        if not request or not request.user.is_authenticated:
+            # Ocultar leyes/regulaciones (puede contener info sensible)
+            data.pop('laws', None)
+            
+            # Ocultar precios de enseres (inventory)
+            if 'inventory' in data and data['inventory']:
+                for item in data['inventory']:
+                    if 'enser' in item and item['enser']:
+                        item['enser'].pop('price', None)
+            
+            # Ocultar costos de reparaciones
+            if 'repairs' in data and data['repairs']:
+                for repair in data['repairs']:
+                    repair.pop('cost', None)
+        
+        return data
 
 
 # Serializer completo de PropertyMedia (con todos los campos) para lectura

@@ -47,8 +47,8 @@ class User(AbstractUser):
         related_query_name='custom_user',
     )
     
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username']
+    USERNAME_FIELD = 'username'
+    REQUIRED_FIELDS = ['email']
     
     class Meta:
         db_table = 'user'

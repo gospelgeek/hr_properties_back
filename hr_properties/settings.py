@@ -25,15 +25,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-=j2fko_+lqf4*+^#ulxd!rvz*+(46$b*1b2&v30-sy%b@s+oxj'
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ['localhost',
-    '127.0.0.1',
-    'http://localhost:5173',
-    'http://127.0.0.1:5173']
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost, 127.0.0.1, http://localhost:5173, http://127.0.0.1:5173').split(', ')
 
 
 # Application definition
@@ -58,6 +55,7 @@ INSTALLED_APPS = [
     'apps.maintenance',
     'apps.rentals',
     'apps.finance',
+    'apps.emails',
 ]
 
 MIDDLEWARE = [
@@ -96,9 +94,16 @@ WSGI_APPLICATION = 'hr_properties.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
+        'NAME': os.getenv('DB_NAME', 'hr-properties'),
+        'USER': os.getenv('DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
+    },
+    'OPTIONS': {
+            'options': '-c client_encoding=UTF8'
+        }
 }
 
 
@@ -137,16 +142,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
-
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # Media files (archivos subidos por usuarios)
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # CORS Configuration
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-]
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173, http://127.0.0.1:5173').split(', ')
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -157,11 +159,13 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'users.User'
 
 # ==============================
-# AUTENTICACIÓN
+# AUTENTICACI
 # ==============================
 
 # Google OAuth
 GOOGLE_OAUTH_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+#print("ENV DIRECTO:", os.environ.get("GOOGLE_OAUTH_CLIENT_ID"))
+#print("SETTING FINAL:", GOOGLE_OAUTH_CLIENT_ID)
 
 # REST Framework
 REST_FRAMEWORK = {
@@ -193,3 +197,12 @@ SIMPLE_JWT = {
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
 }
+
+
+DEFAULT_FROM_EMAIL = os.getenv('GMAIL_USER')
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'  # Para desarrollo, imprime emails en consola
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = DEFAULT_FROM_EMAIL
+EMAIL_HOST_PASSWORD = os.getenv('GMAIL_PASSWORD')

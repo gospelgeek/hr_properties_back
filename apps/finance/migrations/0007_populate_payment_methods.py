@@ -4,7 +4,7 @@ from django.db import migrations
 
 
 def create_payment_methods(apps, schema_editor):
-    """Crear automáticamente los 4 métodos de pago"""
+    """Crear automáticamente los métodos de pago"""
     PaymentMethod = apps.get_model('finance', 'PaymentMethod')
     
     methods = [
@@ -12,6 +12,7 @@ def create_payment_methods(apps, schema_editor):
         {'name': 'transfer'},
         {'name': 'check'},
         {'name': 'card'},
+        {'name': 'zelle'},
     ]
     
     for method in methods:
@@ -21,7 +22,7 @@ def create_payment_methods(apps, schema_editor):
 def reverse_create_payment_methods(apps, schema_editor):
     """Eliminar los métodos de pago creados"""
     PaymentMethod = apps.get_model('finance', 'PaymentMethod')
-    PaymentMethod.objects.filter(name__in=['cash', 'transfer', 'check', 'card']).delete()
+    PaymentMethod.objects.filter(name__in=['cash', 'transfer', 'check', 'card', 'zelle']).delete()
 
 
 class Migration(migrations.Migration):

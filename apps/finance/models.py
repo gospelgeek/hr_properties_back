@@ -1,14 +1,22 @@
 from django.db import models
-
 from django.core.validators import MinValueValidator
 from apps.properties.models import Property
+import os
+
+
+def property_payment_voucher_upload_to(instance, filename):
+    """Organiza vouchers de pagos en carpetas por ID de propiedad"""
+    safe_filename = filename.replace(' ', '_')
+    # Obtener el ID de la propiedad a través de la obligación
+    property_id = instance.obligation.property.id
+    return f'property_{property_id}/payments/{safe_filename}'
 
 class ObligationType(models.Model):
     """Tipos de obligaciones (impuestos, servicios, etc.)"""
     OBLIGATION_TYPE_CHOICES = [
         ('tax', 'Tax'),
-        ('seguro', 'Insurance'),
-        ('cuota', 'Fee')
+        ('insurance', 'Insurance'),
+        ('fee', 'Fee')
     ]
     
     id = models.AutoField(primary_key=True)
@@ -96,6 +104,7 @@ class PaymentMethod(models.Model):
         ('transfer', 'Transfer'),
         ('check', 'Check'),
         ('card', 'Card'),
+        ('zelle', 'Zelle'),
     ]
     
     id = models.AutoField(primary_key=True)
@@ -116,7 +125,7 @@ class PaymentMethod(models.Model):
 
 class PropertyPayment(models.Model):
     """Pagos de obligaciones de propiedades"""
-    LOCATION_CHOICES = [('office', 'Office'), ('daycare', 'Daycare')]
+    LOCATION_CHOICES = [('office', 'Office'), ('daycare', 'Daycare'), ('online', 'Online')]
     
     id = models.AutoField(primary_key=True)
     obligation = models.ForeignKey(
@@ -134,7 +143,7 @@ class PropertyPayment(models.Model):
     )
     payment_location = models.CharField(
         max_length=255,
-        default="office",
+        default="online",
         choices=LOCATION_CHOICES,
         verbose_name='Payment Location'
     )
@@ -146,6 +155,7 @@ class PropertyPayment(models.Model):
     )
     date = models.DateField(verbose_name='Payment Date')
     voucher_url = models.FileField(
+        upload_to=property_payment_voucher_upload_to,
         blank=True,
         db_column='voucher_url',
         verbose_name='Voucher URL'

@@ -65,8 +65,9 @@ class RentalViewSet(viewsets.ModelViewSet):
         if hasattr(self.request.user, 'userrole_set'):
             user_roles = self.request.user.userrole_set.values_list('role__name', flat=True)
             if 'cliente' in user_roles:
-                # Clientes solo ven sus propios rentals
-                queryset = queryset.filter(tenant__user=self.request.user)
+                tenant = Tenant.objects.filter(phone1=self.request.user.username).first()
+                if tenant:
+                    queryset = queryset.filter(tenant=tenant)
         
         # Filtro por status
         status_param = self.request.query_params.get('status', None)
@@ -131,6 +132,102 @@ class RentalViewSet(viewsets.ModelViewSet):
             'days': days,
             'rentals': serializer.data
         })
+    
+    @action(detail=True, methods=['get'], url_path='payments')
+    def payments(self, request, pk=None):
+        """
+        📋 Obtener todos los pagos de un rental específico (SOLO LECTURA)
+        
+        ENDPOINT:
+            GET /api/rentals/{id}/payments/
+        
+        PERMISOS:
+            ✅ Admins: Pueden ver todos los pagos de cualquier rental
+            ✅ Clientes: Solo pueden ver pagos de sus propios rentals
+            ❌ Clientes NO pueden crear, editar ni eliminar pagos (solo admins)
+        
+        EJEMPLO DE RESPUESTA:
+        {
+            "count": 3,                    // Total de pagos realizados
+            "total_paid": 4500000.00,      // Suma total de todos los pagos
+            "rental": {                    // Información del rental
+                "id": 5,
+                "property": {
+                    "id": 2,
+                    "address": "Calle 123 #45-67"
+                },
+                "tenant": {
+                    "id": 3,
+                    "phone1": "3001234567",
+                    "email": "tenant@example.com"
+                },
+                "rental_type": "monthly",
+                "status": "occupied",
+                "amount": 1500000.00,
+                "check_in": "2026-01-01",
+                "check_out": "2026-07-01"
+            },
+            "payments": [                 // Lista de todos los pagos
+                {
+                    "id": 12,
+                    "date": "2026-02-01",
+                    "amount": 1500000.00,
+                    "payment_method": {
+                        "id": 2,
+                        "name": "transfer"
+                    },
+                    "voucher_url": "http://example.com/vouchers/voucher_12.pdf",
+                    "notes": "Pago mes de febrero"
+                },
+                {
+                    "id": 11,
+                    "date": "2026-01-01",
+                    "amount": 1500000.00,
+                    "payment_method": {
+                        "id": 1,
+                        "name": "cash"
+                    },
+                    "voucher_url": null,
+                    "notes": "Pago mes de enero"
+                }
+            ]
+        }
+        
+        NOTA: Para crear, editar o eliminar pagos, el admin debe usar:
+            POST   /api/properties/{property_id}/rentals/{rental_id}/add_payment/
+            PATCH  /api/properties/{property_id}/rentals/{rental_id}/payments/{payment_id}/
+            DELETE /api/properties/{property_id}/rentals/{rental_id}/payments/{payment_id}/
+        """
+        rental = self.get_object()  # Esto ya aplica las validaciones de permisos del get_queryset
+        
+        # Los clientes solo pueden ver pagos de sus propios rentals
+        if hasattr(request.user, 'userrole_set'):
+            user_roles = request.user.userrole_set.values_list('role__name', flat=True)
+            if 'cliente' in user_roles:
+                tenant = Tenant.objects.filter(phone1=request.user.username).first()
+                if not tenant or rental.tenant != tenant:
+                    return Response(
+                        {'detail': 'No tienes permiso para ver estos pagos.'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+        
+        # Obtener pagos del rental
+        payments = RentalPayment.objects.filter(rental=rental).order_by('-date')
+        
+        # Calcular total pagado
+        from django.db.models import Sum
+        total_paid = payments.aggregate(total=Sum('amount'))['total'] or 0
+        
+        # Serializar
+        payments_serializer = RentalPaymentSerializer(payments, many=True, context={'request': request})
+        rental_serializer = RentalSerializer(rental, context={'request': request})
+        
+        return Response({
+            'count': payments.count(),
+            'total_paid': float(total_paid),
+            'rental': rental_serializer.data,
+            'payments': payments_serializer.data
+        })
 
 
 class PropertyAddRentalView(generics.CreateAPIView):
@@ -153,16 +250,16 @@ class PropertyAddRentalView(generics.CreateAPIView):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Validar que no haya un rental activo (occupied) en esta propiedad
-        active_rental = Rental.objects.filter(
+        occupied_rental = Rental.objects.filter(
             property=property_instance,
             status='occupied'
         ).first()
         
-        if active_rental:
+        if occupied_rental:
             return Response({
                 'error': f'Esta propiedad ya tiene un rental activo (occupied). Debes finalizar o cancelar el rental actual antes de crear uno nuevo.',
-                'active_rental_id': active_rental.id,
-                'tenant': active_rental.tenant.full_name
+                'occupied_rental_id': occupied_rental.id,
+                'tenant': occupied_rental.tenant.full_name
             }, status=status.HTTP_400_BAD_REQUEST)
         
         serializer = self.get_serializer(data=request.data)
@@ -222,8 +319,13 @@ class PropertyRentalDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class RentalAddPaymentView(generics.CreateAPIView):
-    """Vista para añadir un pago a un rental específico"""
+    """
+    Vista para añadir un pago a un rental específico
+    
+    PERMISOS: Solo admins pueden crear pagos
+    """
     serializer_class = RentalPaymentCreateSerializer
+    permission_classes = [IsAdminUser]  # Solo admins pueden crear pagos
     
     def get_rental(self):
         property_id = self.kwargs.get('property_id')
@@ -259,8 +361,14 @@ class RentalAddPaymentView(generics.CreateAPIView):
 
 
 class RentalPaymentsListView(generics.ListAPIView):
-    """Vista para listar todos los pagos de un rental"""
+    """
+    Vista para listar todos los pagos de un rental
+    
+    PERMISOS: Admins y clientes pueden ver (cliente solo sus propios rentals)
+    RECOMENDACIÓN: Usar GET /api/rentals/{id}/payments/ en su lugar
+    """
     serializer_class = RentalPaymentSerializer
+    permission_classes = [IsAdminOrReadOnlyClient]  # Lectura para clientes y admins
     
     def get_queryset(self):
         property_id = self.kwargs.get('property_id')
@@ -271,8 +379,13 @@ class RentalPaymentsListView(generics.ListAPIView):
 
 
 class RentalPaymentDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Vista para ver, editar o eliminar un pago específico de un rental"""
+    """
+    Vista para ver, editar o eliminar un pago específico de un rental
+    
+    PERMISOS: Solo admins pueden editar/eliminar pagos
+    """
     serializer_class = RentalPaymentSerializer
+    permission_classes = [IsAdminUser]  # Solo admins pueden editar/eliminar pagos
     
     def get_queryset(self):
         property_id = self.kwargs.get('property_id')
@@ -295,17 +408,17 @@ class RentalsDashboardStatsView(APIView):
     """Vista para obtener estadísticas de rentals para el dashboard
     
     Retorna contadores agrupados por tipo de rental (monthly/airbnb) y estado:
-    - active (occupied): Rentals ocupados actualmente
+    - occupied (occupied): Rentals ocupados actualmente
     - available: Rentals disponibles
     - ending_soon: Rentals que terminan en los próximos 30 días
     
     Ejemplo de respuesta:
     {
         "rentals": {
-            "monthly_active": 5,
+            "monthly_occupied": 5,
             "monthly_available": 2,
             "monthly_ending_soon": 1,
-            "airbnb_active": 8,
+            "airbnb_occupied": 8,
             "airbnb_available": 3,
             "airbnb_ending_soon": 2
         }
@@ -318,7 +431,7 @@ class RentalsDashboardStatsView(APIView):
         ending_soon_date = today + timedelta(days=30)
         
         # Contadores para rentals mensuales
-        monthly_active = Rental.objects.filter(
+        monthly_occupied = Rental.objects.filter(
             rental_type='monthly',
             status='occupied'
         ).count()
@@ -336,7 +449,7 @@ class RentalsDashboardStatsView(APIView):
         ).count()
         
         # Contadores para rentals Airbnb
-        airbnb_active = Rental.objects.filter(
+        airbnb_occupied = Rental.objects.filter(
             rental_type='airbnb',
             status='occupied'
         ).count()
@@ -355,10 +468,10 @@ class RentalsDashboardStatsView(APIView):
         
         return Response({
             "rentals": {
-                "monthly_active": monthly_active,
+                "monthly_occupied": monthly_occupied,
                 "monthly_available": monthly_available,
                 "monthly_ending_soon": monthly_ending_soon,
-                "airbnb_active": airbnb_active,
+                "airbnb_occupied": airbnb_occupied,
                 "airbnb_available": airbnb_available,
                 "airbnb_ending_soon": airbnb_ending_soon
             }
