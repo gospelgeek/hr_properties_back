@@ -1,24 +1,38 @@
-name: Deploy to Coolify
+name: Send Daily Alerts
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:  # Permite ejecutar manualmente
+  schedule:
+    # Ejecutar todos los días a las 8:00 AM UTC (ajusta la hora)
+    - cron: '0 8 * * *'
+  workflow_dispatch: # Permite ejecutar manualmente
 
 jobs:
-  deploy:
+  send-alerts:
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
       
-      - name: Trigger Coolify deployment
-        run: |
-          curl -X POST "${{ secrets.COOLIFY_WEBHOOK_URL }}"
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
       
-      - name: Notify deployment
-        run: echo "Deployment triggered successfully"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run alert command
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
+        run: |
+          python manage.py send_due_alerts --alert-days 5 1
 
 # CONFIGURACIÓN:
 # 1. Ve a GitHub: Settings → Secrets and variables → Actions

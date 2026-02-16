@@ -52,7 +52,7 @@ class Command(BaseCommand):
         for type_data in obligation_types:
             obj, created = ObligationType.objects.get_or_create(
                 name=type_data['name'],
-                defaults={'description': type_data['description']}
+                #defaults={'description': type_data['description']}
             )
             if created:
                 created_types += 1
