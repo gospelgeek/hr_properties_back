@@ -249,14 +249,8 @@ EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USE_TLS=True
-GMAIL_USER=hrpropertiessystem@gmail.com
-GMAIL_PASSWORD=qyih spoe pntl zhre
-DEFAULT_FROM_EMAIL=hrpropertiessystem@gmail.com
 
-# ══════════════════════════════════════
-# ADMIN EMAILS (para alertas de obligaciones)
-# ══════════════════════════════════════
-ADMIN_EMAILS=hrpropertiessystem@gmail.com,admin2@empresa.com
+
 
 # ══════════════════════════════════════
 # CORS
