@@ -228,6 +228,46 @@ class RentalViewSet(viewsets.ModelViewSet):
             'rental': rental_serializer.data,
             'payments': payments_serializer.data
         })
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    def end_rental(self, request, pk=None):
+        """
+        Terminar un rental (eliminarlo) para que la propiedad quede libre (solo admins)
+        
+        ENDPOINT:
+            POST /api/rentals/{id}/end_rental/
+        
+        PERMISOS:
+            ✅ Solo admins
+        
+        USO:
+            Cuando un rental termina y quieres liberar la propiedad para que pueda 
+            ser alquilada nuevamente. Esto elimina el rental completamente.
+        
+        RESPUESTA:
+        {
+            "message": "Rental terminado. La propiedad Casa #123 está ahora disponible",
+            "property": {
+                "id": 2,
+                "name": "Casa #123",
+                "rental_type": "monthly"
+            }
+        }
+        """
+        rental = self.get_object()
+        property_data = {
+            'id': rental.property.id,
+            'name': rental.property.name,
+            'rental_type': rental.property.rental_type
+        }
+        
+        # Eliminar el rental
+        rental.delete()
+        
+        return Response({
+            'message': f'Rental terminado. La propiedad {property_data["name"]} está ahora disponible',
+            'property': property_data
+        }, status=status.HTTP_200_OK)
 
 
 class PropertyAddRentalView(generics.CreateAPIView):
@@ -243,23 +283,25 @@ class PropertyAddRentalView(generics.CreateAPIView):
         """Crear un rental asociado a la propiedad"""
         property_instance = self.get_property()
         
-        # Validar que la propiedad sea de rental (ahora con mayúscula)
+        # Validar que la propiedad sea de rental
         if property_instance.use != 'rental':
             return Response({
                 'error': f'This property is for "{property_instance.get_use_display()}" use. Only rental properties can have rentals.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Validar que no haya un rental activo (occupied) en esta propiedad
-        occupied_rental = Rental.objects.filter(
-            property=property_instance,
-            status='occupied'
+        # Validar que no exista ningún rental para esta propiedad
+        # Una propiedad solo puede tener un rental (disponible u ocupado)
+        existing_rental = Rental.objects.filter(
+            property=property_instance
         ).first()
         
-        if occupied_rental:
+        if existing_rental:
+            tenant_name = existing_rental.tenant.full_name if existing_rental.tenant else 'Sin inquilino asignado'
             return Response({
-                'error': f'Esta propiedad ya tiene un rental activo (occupied). Debes finalizar o cancelar el rental actual antes de crear uno nuevo.',
-                'occupied_rental_id': occupied_rental.id,
-                'tenant': occupied_rental.tenant.full_name
+                'error': f'Esta propiedad ya tiene un rental ({existing_rental.get_status_display()}). Debes terminarlo antes de crear uno nuevo.',
+                'existing_rental_id': existing_rental.id,
+                'tenant': tenant_name,
+                'status': existing_rental.status
             }, status=status.HTTP_400_BAD_REQUEST)
         
         serializer = self.get_serializer(data=request.data)
@@ -307,8 +349,20 @@ class PropertyRentalDetailView(generics.RetrieveUpdateDestroyAPIView):
         
         serializer = RentalCreateSerializer(instance, data=request.data, partial=partial)
         if serializer.is_valid():
-            serializer.save()
-            response_serializer = RentalDetailSerializer(instance, context={'request': request})
+            rental = serializer.save()
+            
+            # Si ahora tiene tenant, check_in y check_out, cambiar automáticamente a occupied
+            if rental.tenant and rental.check_in and rental.check_out:
+                if rental.status != 'occupied':
+                    rental.status = 'occupied'
+                    rental.save()
+            # Si se elimina el tenant, cambiar a available
+            elif not rental.tenant:
+                if rental.status != 'available':
+                    rental.status = 'available'
+                    rental.save()
+            
+            response_serializer = RentalDetailSerializer(rental, context={'request': request})
             return Response(response_serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
