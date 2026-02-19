@@ -125,28 +125,61 @@ class RentalCreateSerializer(serializers.ModelSerializer):
         airbnb_data = data.get('airbnb_data')
         status = data.get('status', 'available')
         tenant = data.get('tenant')
+        check_in = data.get('check_in')
+        check_out = data.get('check_out')
         
-        # Validar que si status='occupied', se requiere tenant
-        if status == 'occupied' and not tenant:
-            raise serializers.ValidationError({
-                'tenant': 'Se requiere un inquilino cuando el estado es "occupied"'
-            })
+        # Si NO hay tenant, status debe ser available
+        if not tenant:
+            if status != 'available':
+                raise serializers.ValidationError({
+                    'status': 'Si no hay inquilino, el estado debe ser "available".'
+                })
+            # check_in y check_out pueden ser None cuando no hay tenant
+        else:
+            # Si hay tenant, check_in y check_out son obligatorios
+            if not check_in:
+                raise serializers.ValidationError({
+                    'check_in': 'Se requiere fecha de check-in cuando hay un inquilino asignado.'
+                })
+            if not check_out:
+                raise serializers.ValidationError({
+                    'check_out': 'Se requiere fecha de check-out cuando hay un inquilino asignado.'
+                })
+            # Si hay tenant, status debe ser occupied
+            if status != 'occupied':
+                raise serializers.ValidationError({
+                    'status': 'Si hay un inquilino asignado, el estado debe ser "occupied".'
+                })
         
-        # Validar que si hay tenant, el status debe ser 'occupied'
-        if tenant and status != 'occupied':
-            raise serializers.ValidationError({
-                'status': 'Si hay un inquilino asignado, el estado debe ser "occupied"'
-            })
+        # Validar que monthly_data tenga los campos obligatorios
+        if rental_type == 'monthly':
+            if not monthly_data:
+                raise serializers.ValidationError({
+                    'monthly_data': 'Se requieren datos de arriendo mensual (deposit_amount, is_refundable)'
+                })
+            if 'deposit_amount' not in monthly_data:
+                raise serializers.ValidationError({
+                    'monthly_data': {'deposit_amount': 'Este campo es obligatorio para rentas mensuales'}
+                })
+            if 'is_refundable' not in monthly_data:
+                raise serializers.ValidationError({
+                    'monthly_data': {'is_refundable': 'Este campo es obligatorio para rentas mensuales'}
+                })
         
-        if rental_type == 'monthly' and not monthly_data:
-            raise serializers.ValidationError({
-                'monthly_data': 'Se requieren datos de arriendo mensual para este tipo'
-            })
-        
-        if rental_type == 'airbnb' and not airbnb_data:
-            raise serializers.ValidationError({
-                'airbnb_data': 'Se requieren datos de Airbnb para este tipo'
-            })
+        # Validar que airbnb_data tenga los campos obligatorios
+        if rental_type == 'airbnb':
+            if not airbnb_data:
+                raise serializers.ValidationError({
+                    'airbnb_data': 'Se requieren datos de Airbnb (deposit_amount, is_refundable)'
+                })
+            if 'deposit_amount' not in airbnb_data:
+                raise serializers.ValidationError({
+                    'airbnb_data': {'deposit_amount': 'Este campo es obligatorio para Airbnb'}
+                })
+            if 'is_refundable' not in airbnb_data:
+                raise serializers.ValidationError({
+                    'airbnb_data': {'is_refundable': 'Este campo es obligatorio para Airbnb'}
+                })
         
         return data
     

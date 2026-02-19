@@ -81,8 +81,8 @@ class Rental(models.Model):
         choices=RENTAL_TYPE_CHOICES,
         verbose_name='Rental Type'
     )
-    check_in = models.DateField(verbose_name='Check In')
-    check_out = models.DateField(verbose_name='Check Out')
+    check_in = models.DateField(verbose_name='Check In', null=True, blank=True)
+    check_out = models.DateField(verbose_name='Check Out', null=True, blank=True)
     amount = models.DecimalField(
         max_digits=10, 
         decimal_places=2, 
@@ -91,7 +91,9 @@ class Rental(models.Model):
     )
     people_count = models.IntegerField(
         validators=[MinValueValidator(1)],
-        verbose_name='People Count'
+        verbose_name='People Count',
+        null=True,
+        blank=True
     )
     notes = models.TextField(blank=True, verbose_name='Notes')
     status = models.CharField(
@@ -111,14 +113,15 @@ class Rental(models.Model):
     
     def clean(self):
         """Validaciones personalizadas"""
-        # Validar que check_out sea después de check_in
+        # Validar que check_out sea después de check_in (solo si ambos están definidos)
         if self.check_out and self.check_in and self.check_out <= self.check_in:
             raise ValidationError({
                 'check_out': 'La fecha de salida debe ser posterior a la fecha de entrada'
             })
         
-        # Validar solapamiento de fechas para la misma propiedad
-        if self.property and self.check_in and self.check_out:
+        # Validar solapamiento de fechas solo si el rental está occupied
+        # (rentals en available pueden no tener fechas o tener fechas sin colisión)
+        if self.status == 'occupied' and self.property and self.check_in and self.check_out:
             overlapping = Rental.objects.filter(
                 property=self.property,
                 status='occupied'
@@ -129,8 +132,9 @@ class Rental(models.Model):
             
             if overlapping.exists():
                 rental = overlapping.first()
+                tenant_name = rental.tenant.full_name if rental.tenant else 'Sin inquilino'
                 raise ValidationError({
-                    'property': f'Ya existe un rental activo en estas fechas: {rental.tenant.full_name} ({rental.check_in} - {rental.check_out})'
+                    'property': f'Ya existe un rental activo en estas fechas: {tenant_name} ({rental.check_in} - {rental.check_out})'
                 })
     
     def save(self, *args, **kwargs):
@@ -139,11 +143,12 @@ class Rental(models.Model):
         super().save(*args, **kwargs)
     
     def __str__(self):
-        return f"{self.property.name} - {self.tenant.full_name} ({self.status})"
+        tenant_name = self.tenant.full_name if self.tenant else 'Sin inquilino'
+        return f"{self.property.name} - {tenant_name} ({self.status})"
 
 class RentalPayment(models.Model):
     """Pagos de arriendos - Mejorado con más campos"""
-    LOCATION_CHOICES = [('office', 'Office'), ('daycare', 'Daycare')]
+    LOCATION_CHOICES = [('office', 'Office'), ('daycare', 'Daycare'), ('online', 'Online')]
     id = models.AutoField(primary_key=True)
     rental = models.ForeignKey(
         Rental, 
@@ -191,8 +196,8 @@ class MonthlyRental(models.Model):
         related_name='monthly_records'
     )
     deposit_amount = models.DecimalField(
-        max_digits=10, 
-        decimal_places=2,
+        max_digits=10,
+        decimal_places=2, 
         validators=[MinValueValidator(0)],
         db_column='depositAmount',
         verbose_name='Deposit Amount'
@@ -229,9 +234,24 @@ class AirbnbRental(models.Model):
     is_paid = models.BooleanField(
         default=False,
         db_column='is_paid(bool)',
-        verbose_name='Is Paid'
+        verbose_name='Is Paid',
+        null=True,
+        blank=True
     )
-    
+    deposit_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2, 
+        validators=[MinValueValidator(0)],
+        db_column='depositAmount',
+        verbose_name='Deposit Amount',
+        null=True,
+        blank=True
+    )
+    is_refundable = models.BooleanField(
+        default=True,
+        db_column='is_refundable',
+        verbose_name='Is Refundable'
+    )
     class Meta:
         db_table = 'airbnb_rental'
         verbose_name = 'Airbnb Rental'

@@ -487,16 +487,23 @@ class DashboardView(APIView):
         # Estadísticas detalladas por tipo de rental (30 días para ending_soon)
         ending_soon_date = today + timedelta(days=30)
         
-        # Monthly rentals
-        monthly_occupied = Rental.objects.filter(
+        # Monthly properties
+        # Ocupadas: propiedades con rental_type='monthly' que tienen un rental activo
+        monthly_occupied = Property.objects.filter(
+            use='rental',
             rental_type='monthly',
-            status='occupied'
-        ).count()
+            is_deleted__isnull=True,
+            rentals__status='occupied'
+        ).distinct().count()
         
-        monthly_available = Rental.objects.filter(
+        # Disponibles: propiedades con rental_type='monthly' sin rental activo
+        monthly_available = Property.objects.filter(
+            use='rental',
             rental_type='monthly',
-            status='available'
-        ).count()
+            is_deleted__isnull=True
+        ).exclude(
+            rentals__status='occupied'
+        ).distinct().count()
         
         monthly_ending_soon = Rental.objects.filter(
             rental_type='monthly',
@@ -505,16 +512,23 @@ class DashboardView(APIView):
             check_out__lte=ending_soon_date
         ).count()
         
-        # Airbnb rentals
-        airbnb_occupied = Rental.objects.filter(
+        # Airbnb properties
+        # Ocupadas: propiedades con rental_type='airbnb' que tienen un rental activo
+        airbnb_occupied = Property.objects.filter(
+            use='rental',
             rental_type='airbnb',
-            status='occupied'
-        ).count()
+            is_deleted__isnull=True,
+            rentals__status='occupied'
+        ).distinct().count()
         
-        airbnb_available = Rental.objects.filter(
+        # Disponibles: propiedades con rental_type='airbnb' sin rental activo
+        airbnb_available = Property.objects.filter(
+            use='rental',
             rental_type='airbnb',
-            status='available'
-        ).count()
+            is_deleted__isnull=True
+        ).exclude(
+            rentals__status='occupied'
+        ).distinct().count()
         
         airbnb_ending_soon = Rental.objects.filter(
             rental_type='airbnb',

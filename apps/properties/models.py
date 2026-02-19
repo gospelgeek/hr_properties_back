@@ -32,6 +32,11 @@ def enser_inventory_upload_to(instance, filename):
 
 class Property(models.Model):
     
+    RENTAL_TYPE_CHOICES = [
+        ('monthly', 'Monthly'),
+        ('airbnb', 'Airbnb'),
+      ]
+    
     USE_CHOICES = [
         ('rental', 'Rental'),
         ('personal', 'Personal'),
@@ -46,6 +51,15 @@ class Property(models.Model):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=255, verbose_name='Name')
     use = models.CharField(max_length=100, choices=USE_CHOICES, verbose_name='Use Type')
+    rental_type = models.CharField(
+        max_length=100,
+        choices=RENTAL_TYPE_CHOICES,
+        blank=True,
+        null=True,
+        verbose_name='Rental Type',
+        help_text='Required if use is rental (monthly or airbnb)',
+        default='monthly'
+    )
     address = models.CharField(max_length=255, verbose_name='Address')
     map_url = models.URLField(
         max_length=2000,
@@ -105,11 +119,12 @@ class PropertyDetails(models.Model):
         db_column='id_property',
         related_name='details'
     )
-    bedrooms = models.IntegerField(verbose_name='Bedrooms')
-    bathrooms = models.IntegerField(verbose_name='Bathrooms')
-    floors = models.IntegerField(verbose_name='Floors')
-    observations = models.TextField(blank=True, verbose_name='Observations')
-    buildings = models.IntegerField(default=1, verbose_name='Buildings')
+    bedrooms = models.IntegerField(verbose_name='Bedrooms', null=True, blank=True)
+    bathrooms = models.IntegerField(verbose_name='Bathrooms', null=True, blank=True)
+    half_bathrooms = models.IntegerField(verbose_name='Half Bathrooms', default=0, null=True, blank=True)
+    floors = models.IntegerField(verbose_name='Floors', null=True, blank=True)
+    observations = models.TextField(blank=True, verbose_name='Observations', help_text='Additional details about the property')
+    buildings = models.IntegerField(default=1, verbose_name='Buildings', null=True, blank=True)
     
     class Meta:
         db_table = 'property_details'
