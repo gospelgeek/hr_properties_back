@@ -467,7 +467,10 @@ class DashboardView(APIView):
         # ========== 3. RENTALS ==========
         from apps.rentals.models import Rental, RentalPayment
         
-        occupied_rentals = Rental.objects.filter(status='occupied').count()
+        occupied_rentals = Rental.objects.filter(
+            status='occupied',
+            property__is_deleted__isnull=True
+        ).count()
         
         # Propiedades de rental sin rental activo (solo activas)
         available_properties = Property.objects.filter(
@@ -480,12 +483,13 @@ class DashboardView(APIView):
         # Rentals que terminan en los próximos 15 días
         upcoming_rental_ends = Rental.objects.filter(
             status='occupied',
+            property__is_deleted__isnull=True,
             check_out__gte=today,
             check_out__lte=today + timedelta(days=15)
         ).count()
         
         # Estadísticas detalladas por tipo de rental (30 días para ending_soon)
-        ending_soon_date = today + timedelta(days=30)
+        ending_soon_date = today + timedelta(days=15)
         
         # Monthly properties
         # Ocupadas: propiedades con rental_type='monthly' que tienen un rental activo
@@ -508,6 +512,7 @@ class DashboardView(APIView):
         monthly_ending_soon = Rental.objects.filter(
             rental_type='monthly',
             status='occupied',
+            property__is_deleted__isnull=True,
             check_out__gte=today,
             check_out__lte=ending_soon_date
         ).count()
@@ -533,6 +538,7 @@ class DashboardView(APIView):
         airbnb_ending_soon = Rental.objects.filter(
             rental_type='airbnb',
             status='occupied',
+            property__is_deleted__isnull=True,
             check_out__gte=today,
             check_out__lte=ending_soon_date
         ).count()
