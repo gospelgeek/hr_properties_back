@@ -216,8 +216,8 @@ class PropertyViewSet(viewsets.ModelViewSet):
         if rental_type:
             types = [t.strip() for t in rental_type.split(',')]
             
-            # Propiedades que tienen al menos un rental del tipo especificado
-            queryset = queryset.filter(rentals__rental_type__in=types).distinct()
+            # Filtrar por el campo rental_type de Property
+            queryset = queryset.filter(rental_type__in=types)
         
         return queryset
     
