@@ -111,12 +111,32 @@ class RentalDetailSerializer(serializers.ModelSerializer):
 
 class RentalCreateSerializer(serializers.ModelSerializer):
     """Serializer para crear rentals con datos anidados de monthly/airbnb"""
-    monthly_data = MonthlyRentalSerializer(required=False, write_only=True)
-    airbnb_data = AirbnbRentalSerializer(required=False, write_only=True)
+    monthly_data = serializers.JSONField(required=False, write_only=True)
+    airbnb_data = serializers.JSONField(required=False, write_only=True)
     
     class Meta:
         model = Rental
         exclude = ['property']
+    
+    def validate_monthly_data(self, value):
+        """Validar y convertir monthly_data si viene como string"""
+        if isinstance(value, str):
+            import json
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                raise serializers.ValidationError("monthly_data debe ser un JSON válido")
+        return value
+    
+    def validate_airbnb_data(self, value):
+        """Validar y convertir airbnb_data si viene como string"""
+        if isinstance(value, str):
+            import json
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                raise serializers.ValidationError("airbnb_data debe ser un JSON válido")
+        return value
     
     def validate(self, data):
         """Validar que el tipo de rental coincida con los datos proporcionados"""
@@ -157,6 +177,18 @@ class RentalCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'monthly_data': 'Se requieren datos de arriendo mensual (deposit_amount, is_refundable)'
                 })
+            
+            # Asegurar que monthly_data sea un diccionario
+            if isinstance(monthly_data, str):
+                import json
+                try:
+                    monthly_data = json.loads(monthly_data)
+                    data['monthly_data'] = monthly_data
+                except json.JSONDecodeError:
+                    raise serializers.ValidationError({
+                        'monthly_data': 'Debe ser un JSON válido'
+                    })
+            
             if 'deposit_amount' not in monthly_data:
                 raise serializers.ValidationError({
                     'monthly_data': {'deposit_amount': 'Este campo es obligatorio para rentas mensuales'}
@@ -187,11 +219,20 @@ class RentalCreateSerializer(serializers.ModelSerializer):
         monthly_data = validated_data.pop('monthly_data', None)
         airbnb_data = validated_data.pop('airbnb_data', None)
         
+        # Obtener el archivo si existe en el request
+        request = self.context.get('request')
+        url_files = None
+        if request and request.FILES:
+            url_files = request.FILES.get('monthly_data.url_files') or request.FILES.get('url_files')
+        
         # Crear el rental
         rental = Rental.objects.create(**validated_data)
         
         # Crear el registro específico según el tipo
         if monthly_data:
+            # Agregar el archivo si existe
+            if url_files:
+                monthly_data['url_files'] = url_files
             MonthlyRental.objects.create(rental=rental, **monthly_data)
         
         if airbnb_data:
