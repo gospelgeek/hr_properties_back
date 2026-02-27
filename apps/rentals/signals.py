@@ -29,7 +29,7 @@ def create_client_user_for_tenant(sender, instance, created, **kwargs):
         # Crear el usuario
         user = User.objects.create_user(
             username=instance.phone1,  # Username es el teléfono
-            email=instance.email,
+            email=instance.email if instance.email else None,  # Email del tenant o None
             password=password,
             name=f"{instance.name} {instance.lastname}"
         )

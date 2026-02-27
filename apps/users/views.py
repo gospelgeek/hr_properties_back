@@ -47,13 +47,13 @@ class LoginView(APIView):
         
         if user is None:
             return Response({
-                'error': 'Credenciales inválidas'
+                'error': 'Invalid credentials. Please check your username and password.'
             }, status=status.HTTP_401_UNAUTHORIZED)
         
         # Verificar que sea cliente
         if not user.has_role(Role.CLIENTE):
             return Response({
-                'error': 'Este método de autenticación es solo para clientes'
+                'error': 'This authentication method is only for clients. Please use Google login for administrators.'
             }, status=status.HTTP_403_FORBIDDEN)
         
         # Generar tokens JWT
@@ -119,7 +119,7 @@ class GoogleLoginView(APIView):
             
             if email not in allowed_admin_emails:
                 return Response({
-                    'error': 'Este email no está autorizado como administrador'
+                    'error': 'Email not authorized as administrator'
                 }, status=status.HTTP_403_FORBIDDEN)
             
             # Buscar o crear el usuario

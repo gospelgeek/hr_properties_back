@@ -265,7 +265,7 @@ class RentalViewSet(viewsets.ModelViewSet):
         rental.delete()
         
         return Response({
-            'message': f'Rental terminado. La propiedad {property_data["name"]} está ahora disponible',
+            'message': f'Rental finished. Property {property_data["name"]} is now available',
             'property': property_data
         }, status=status.HTTP_200_OK)
 
@@ -298,7 +298,7 @@ class PropertyAddRentalView(generics.CreateAPIView):
         if existing_rental:
             tenant_name = existing_rental.tenant.full_name if existing_rental.tenant else 'Sin inquilino asignado'
             return Response({
-                'error': f'Esta propiedad ya tiene un rental ({existing_rental.get_status_display()}). Debes terminarlo antes de crear uno nuevo.',
+                'error': f'This property already has a rental ({existing_rental.get_status_display()}). You must end it before creating a new one.',
                 'existing_rental_id': existing_rental.id,
                 'tenant': tenant_name,
                 'status': existing_rental.status
@@ -312,7 +312,7 @@ class PropertyAddRentalView(generics.CreateAPIView):
             response_serializer = RentalDetailSerializer(rental, context={'request': request})
             status_msg = 'occupied' if rental.status == 'occupied' else 'available'
             return Response({
-                'message': f'Rental creado exitosamente para {property_instance.name}. Estado: {status_msg}',
+                'message': f'Rental created successfully for {property_instance.name}. Status: {status_msg}',
                 'rental': response_serializer.data
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -369,7 +369,7 @@ class PropertyRentalDetailView(generics.RetrieveUpdateDestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         instance.delete()
-        return Response({'message': 'Rental eliminado exitosamente'}, status=status.HTTP_204_NO_CONTENT)
+        return Response({'message': 'Rental deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
 
 
 class RentalAddPaymentView(generics.CreateAPIView):
@@ -403,9 +403,9 @@ class RentalAddPaymentView(generics.CreateAPIView):
             
             # Mensaje especial para Airbnb
             if rental_instance.rental_type == 'airbnb':
-                message = f'Pago de Airbnb registrado exitosamente (Transferencia automática)'
+                message = f'Airbnb payment registered successfully (Automatic transfer)'
             else:
-                message = f'Pago añadido exitosamente al rental'
+                message = f'Payment added successfully to rental'
             
             return Response({
                 'message': message,
@@ -455,7 +455,7 @@ class RentalPaymentDetailView(generics.RetrieveUpdateDestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         instance.delete()
-        return Response({'message': 'Pago eliminado exitosamente'}, status=status.HTTP_204_NO_CONTENT)
+        return Response({'message': 'Payment deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
 
 
 class RentalsDashboardStatsView(APIView):

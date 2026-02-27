@@ -481,7 +481,7 @@ class PropertyAddEnserView(generics.CreateAPIView):
             # Devolver la respuesta con el serializer completo
             response_serializer = EnserInventoryDetailSerializer(inventory)
             return Response({
-                'message': f'Enser "{enser.name}" creado y añadido exitosamente al inventario de {property_instance.name}',
+                'message': f'Enser "{enser.name}" created and added successfully to the inventory of {property_instance.name}',
                 'inventory': response_serializer.data
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -568,7 +568,7 @@ class PropertyLawDetailView(generics.RetrieveUpdateDestroyAPIView):
         """Eliminar una PropertyLaw"""
         instance = self.get_object()
         instance.delete()
-        return Response({'message': 'PropertyLaw eliminada exitosamente'}, status=status.HTTP_204_NO_CONTENT)
+        return Response({'message': 'PropertyLaw deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
 
 
 class PropertyUploadMediaView(generics.CreateAPIView):
@@ -590,7 +590,7 @@ class PropertyUploadMediaView(generics.CreateAPIView):
         
         if not files:
             return Response(
-                {'error': 'No se proporcionaron archivos'}, 
+                {'error': 'No files were provided'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -604,6 +604,6 @@ class PropertyUploadMediaView(generics.CreateAPIView):
             created_media.append(PropertyMediaSerializer(media).data)
         
         return Response({
-            'message': f'{len(created_media)} archivo(s) subido(s) exitosamente a {property_instance.name}',
+            'message': f'{len(created_media)} file(s) uploaded successfully to {property_instance.name}',
             'media': created_media
         }, status=status.HTTP_201_CREATED)
