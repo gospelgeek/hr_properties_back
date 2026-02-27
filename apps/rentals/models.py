@@ -28,7 +28,7 @@ class Tenant(models.Model):
     - Password: phone1 + birth_year (ej: "31234567891995")
     """
     id = models.AutoField(primary_key=True)
-    email = models.EmailField(verbose_name='Email')
+    email = models.EmailField(verbose_name='Email', blank=True, null=True)
     name = models.CharField(max_length=255, verbose_name='Name')
     lastname = models.CharField(max_length=255, verbose_name='Last Name')
     phone1 = models.CharField(max_length=20, unique=True, verbose_name='Phone 1')

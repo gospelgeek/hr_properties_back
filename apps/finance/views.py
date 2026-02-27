@@ -173,7 +173,7 @@ class PropertyAddObligationView(generics.CreateAPIView):
             # Devolver respuesta completa
             response_serializer = ObligationDetailSerializer(obligation, context={'request': request})
             return Response({
-                'message': f'Obligación creada exitosamente para {property_instance.name}',
+                'message': f'Obligation created successfully for {property_instance.name}',
                 'obligation': response_serializer.data
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -229,7 +229,7 @@ class PropertyObligationDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         instance.delete()
         return Response({
-            'message': 'Obligación eliminada exitosamente'
+            'message': 'Obligation deleted successfully'
         }, status=status.HTTP_204_NO_CONTENT)
 
 
@@ -277,7 +277,7 @@ class ObligationAddPaymentView(generics.CreateAPIView):
             
             if total_paid + new_amount > obligation_instance.amount:
                 return Response({
-                    'error': f'El pago excede el monto de la obligación',
+                    'error': f'Payment exceeds the obligation amount',
                     'obligation_amount': obligation_instance.amount,
                     'already_paid': total_paid,
                     'pending': obligation_instance.amount - total_paid,
@@ -293,7 +293,7 @@ class ObligationAddPaymentView(generics.CreateAPIView):
             is_fully_paid = new_total_paid >= obligation_instance.amount
             
             return Response({
-                'message': 'Pago registrado exitosamente',
+                'message': 'Payment registered successfully',
                 'payment': response_serializer.data,
                 'obligation_status': {
                     'total_amount': obligation_instance.amount,
@@ -304,7 +304,7 @@ class ObligationAddPaymentView(generics.CreateAPIView):
             }, status=status.HTTP_201_CREATED)
         
         # Imprimir errores para debugging
-        print("❌ Errores de validación:", serializer.errors)
+        print("Errores de validación:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -355,7 +355,7 @@ class ObligationPaymentDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         instance.delete()
         return Response({
-            'message': 'Pago eliminado exitosamente'
+            'message': 'Payment deleted successfully'
         }, status=status.HTTP_204_NO_CONTENT)
 
 
@@ -685,7 +685,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         notification.save()
         
         return Response({
-            'message': 'Notificación marcada como leída',
+            'message': 'Notification marked as read',
             'notification': NotificationSerializer(notification).data
         })
     
@@ -699,7 +699,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         count = Notification.objects.filter(is_read=False).update(is_read=True)
         
         return Response({
-            'message': f'{count} notificaciones marcadas como leídas',
+            'message': f'{count} notifications marked as read',
             'count': count
         })
     

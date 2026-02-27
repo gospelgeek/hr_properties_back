@@ -225,7 +225,7 @@ class EmailAPIView(APIView):
             # Validar campos requeridos
             if not to_email or not subject or not message:
                 return Response(
-                    {'message': 'Faltan campos requeridos (to_email, subject, message)'},
+                    {'message': 'Missing required fields (to_email, subject, message)'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
@@ -233,13 +233,13 @@ class EmailAPIView(APIView):
             send_custom_email(subject, message, to_email)
             
             return Response(
-                {'message': 'Correo Enviado con Exito'},
+                {'message': 'Email sent successfully'},
                 status=status.HTTP_200_OK
             )
             
         except Exception as e:
             error_message = str(e)
             return Response(
-                {'message': f'Error al enviar correo: {error_message}'},
+                {'message': f'Error sending email: {error_message}'},
                 status=status.HTTP_400_BAD_REQUEST
             )
