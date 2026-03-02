@@ -62,6 +62,19 @@ class PropertySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
     
+    def validate(self, data):
+        """Validar que rental_type sea obligatorio solo para propiedades de tipo rental"""
+        use = data.get('use', getattr(self.instance, 'use', None))
+        rental_type = data.get('rental_type', getattr(self.instance, 'rental_type', None))
+        
+        # Si es de tipo rental, rental_type es obligatorio
+        if use == 'rental' and not rental_type:
+            raise serializers.ValidationError({
+                'rental_type': 'Field is required when use is rental.'
+            })
+        
+        return data
+    
     def create(self, validated_data):
         """Crear propiedad con detalles"""
         details_data = validated_data.pop('details', None)

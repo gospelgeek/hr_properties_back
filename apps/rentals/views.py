@@ -283,10 +283,10 @@ class PropertyAddRentalView(generics.CreateAPIView):
         """Crear un rental asociado a la propiedad"""
         property_instance = self.get_property()
         
-        # Validar que la propiedad sea de rental
-        if property_instance.use != 'rental':
+        # Validar que la propiedad sea de rental o commercial
+        if property_instance.use not in ['rental', 'commercial']:
             return Response({
-                'error': f'This property is for "{property_instance.get_use_display()}" use. Only rental properties can have rentals.'
+                'error': f'This property is for "{property_instance.get_use_display()}" use. Only rental and commercial properties can have rentals.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Validar que no exista ningún rental para esta propiedad

@@ -82,11 +82,11 @@ from apps.maintenance.serializers import RepairSerializer, RepairCreateSerialize
 ❌ NO USAR 'active' - Este campo ha sido eliminado
 ✅ USAR 'occupied' y 'available':
 
-   - available: Propiedad de tipo 'rental' SIN rentals activos
+   - available: Propiedad de tipo 'rental' o 'commercial' SIN rentals activos
                 → Puede mostrarse públicamente
                 → Acepta nuevos rentals
    
-   - occupied: Propiedad de tipo 'rental' CON rental activo (status='occupied')
+   - occupied: Propiedad de tipo 'rental' o 'commercial' CON rental activo (status='occupied')
                → Solo admins pueden verla
                → NO acepta nuevos rentals hasta que el actual termine
    
@@ -132,7 +132,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
                             property=property_obj,
                             status='occupied'
                         ).exists()
-                        if not has_occupied_rental and property_obj.use == 'rental':
+                        if not has_occupied_rental and property_obj.use in ['rental', 'commercial']:
                             return [AllowAny()]
                 except Property.DoesNotExist:
                     pass
@@ -200,14 +200,14 @@ class PropertyViewSet(viewsets.ModelViewSet):
                     rentals__check_out__lte=ending_soon_date
                 ).distinct()
             elif 'available' in mapped_statuses and 'occupied' in mapped_statuses:
-                # Si busca ambos, solo filtra por propiedades de rental
-                queryset = queryset.filter(use='rental')
+                # Si busca ambos, solo filtra por propiedades de rental o commercial
+                queryset = queryset.filter(use__in=['rental', 'commercial'])
             elif 'occupied' in mapped_statuses:
                 # Propiedades con rental activo (occupied)
                 queryset = queryset.filter(rentals__status='occupied').distinct()
             elif 'available' in mapped_statuses:
-                # Propiedades de rental sin rental activo o con rental available
-                queryset = queryset.filter(use='rental').exclude(
+                # Propiedades de rental o commercial sin rental activo
+                queryset = queryset.filter(use__in=['rental', 'commercial']).exclude(
                     rentals__status='occupied'
                 ).distinct()
         

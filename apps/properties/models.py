@@ -57,8 +57,7 @@ class Property(models.Model):
         blank=True,
         null=True,
         verbose_name='Rental Type',
-        help_text='Required if use is rental (monthly or airbnb)',
-        default='monthly'
+        help_text='Required if use is rental, optional for commercial (monthly or airbnb)'
     )
     address = models.CharField(max_length=255, verbose_name='Address')
     map_url = models.URLField(
