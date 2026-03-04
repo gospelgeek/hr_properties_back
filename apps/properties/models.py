@@ -45,7 +45,8 @@ class Property(models.Model):
     TYPE_BUILDINGS_CHOICES = [
         ('house', 'House'),
         ('apartment', 'Apartment'),
-        ('office', 'Office')
+        ('office', 'Office'),
+        ('daycare', 'Daycare'),
     ]
     
     id = models.AutoField(primary_key=True)
@@ -123,7 +124,8 @@ class PropertyDetails(models.Model):
     half_bathrooms = models.IntegerField(verbose_name='Half Bathrooms', default=0, null=True, blank=True)
     floors = models.IntegerField(verbose_name='Floors', null=True, blank=True)
     observations = models.TextField(blank=True, verbose_name='Observations', help_text='Additional details about the property')
-    buildings = models.IntegerField(default=1, verbose_name='Buildings', null=True, blank=True)
+    storages = models.IntegerField(default=1, verbose_name='Storages', null=True, blank=True)
+    buildings = models.IntegerField(verbose_name='Buildings', null=True, blank=True, default=0)
     
     class Meta:
         db_table = 'property_details'
