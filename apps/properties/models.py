@@ -47,6 +47,7 @@ class Property(models.Model):
         ('apartment', 'Apartment'),
         ('office', 'Office'),
         ('daycare', 'Daycare'),
+        ('land', 'Land'),
     ]
     
     id = models.AutoField(primary_key=True)
