@@ -83,6 +83,7 @@ class RentalPaymentCreateSerializer(serializers.ModelSerializer):
 class RentalSerializer(serializers.ModelSerializer):
     tenant_name = serializers.CharField(source='tenant.full_name', read_only=True)
     property_name = serializers.CharField(source='property.name', read_only=True)
+    property_address = serializers.CharField(source='property.address', read_only=True)
     
     class Meta:
         model = Rental
@@ -97,11 +98,12 @@ class RentalDetailSerializer(serializers.ModelSerializer):
     airbnb_records = AirbnbRentalSerializer(many=True, read_only=True)
     payments = RentalPaymentSerializer(many=True, read_only=True)
     property_name = serializers.CharField(source='property.name', read_only=True)
+    property_address = serializers.CharField(source='property.address', read_only=True)
     
     class Meta:
         model = Rental
         fields = [
-            'id', 'property', 'property_name', 'tenant', 'rental_type',
+            'id', 'property', 'property_name', 'property_address', 'tenant', 'rental_type',
             'check_in', 'check_out', 'amount', 'people_count', 'notes',
             'status', 'created_at', 'updated_at', 'monthly_records',
             'airbnb_records', 'payments'
