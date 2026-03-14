@@ -16,8 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from django.conf import settings
-from django.conf.urls.static import static
+from hr_properties.media_views import protected_media
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -27,8 +26,5 @@ urlpatterns = [
     path('api/users/', include('apps.users.urls')),
     path('api/', include('apps.finance.urls')),
     path('api/', include('apps.emails.urls')),
+    path('media/<path:path>', protected_media, name='protected-media'),
 ]
-
-# Servir archivos media en desarrollo
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
