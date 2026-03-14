@@ -229,12 +229,6 @@ crontab -e
 0 8 * * * cd /ruta/proyecto && /ruta/venv/bin/python manage.py send_due_alerts
 ```
 
-### Documentación de Alertas
-
-- **[GUIA_ALERTAS_AUTOMATICAS.md](GUIA_ALERTAS_AUTOMATICAS.md)**: Guía completa paso a paso
-- **[EXPLICACION_VISUAL_ALERTAS.md](EXPLICACION_VISUAL_ALERTAS.md)**: Explicación visual del funcionamiento
-- **[apps/emails/README.md](apps/emails/README.md)**: Documentación de la app de emails
-- **[PRODUCCION_EMAIL_CONFIG.md](PRODUCCION_EMAIL_CONFIG.md)**: Configuración de email para producción
 
 ### Configuración de Email
 
@@ -350,9 +344,24 @@ hr-properties/
 ├── README.md            # Este archivo
 ├── GUIA_ALERTAS_AUTOMATICAS.md       # Guía de alertas automáticas
 ├── EXPLICACION_VISUAL_ALERTAS.md     # Explicación visual del sistema
-├── GUIA_COMANDOS_PRODUCCION.md       # Comandos para producción
-├── PRODUCCION_EMAIL_CONFIG.md        # Configuración de email
-└── CHECKLIST_PRODUCCION.md           # Checklist pre-producción
+
+```
+media/
+├── property_1/
+│   ├── images/         # Imagen principal de la propiedad
+│   ├── media/          # Galería de fotos/videos
+│   ├── laws/           # Documentos legales
+│   ├── ensers/         # Fotos de inventario
+│   ├── payments/       # Vouchers de pagos de obligaciones
+│   └── rentals/
+│       ├── payments/   # Vouchers de pagos de rentas
+│       └── contracts/  # Contratos y documentos de rentas
+├── property_2/
+│   └── ...
+└── property_3/
+    └── ...
+```
+
 ```
 
 ## 🔧 Tecnologías
