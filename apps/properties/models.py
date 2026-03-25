@@ -181,10 +181,12 @@ class PropertyLaw(models.Model):
         max_digits=12, 
         decimal_places=2,
         db_column='original_amount',
-        verbose_name='Monto original'
+        verbose_name='Monto original',
+        blank=True,
+        null=True,
     )
-    legal_number = models.CharField(max_length=100, verbose_name='Número legal')
-    is_paid = models.BooleanField(default=False, db_column='is_paid', verbose_name='Está pagado')
+    legal_number = models.CharField(max_length=100, verbose_name='Número legal', blank=True, null=True)
+    is_paid = models.BooleanField(default=False, db_column='is_paid', verbose_name='Está pagado', blank=True, null=True)
     
     class Meta:
         db_table = 'property_law'

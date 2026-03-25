@@ -105,6 +105,7 @@ class PaymentMethod(models.Model):
         ('check', 'Check'),
         ('card', 'Card'),
         ('zelle', 'Zelle'),
+        ('checking account', 'Checking Account'),
     ]
     
     id = models.AutoField(primary_key=True)
