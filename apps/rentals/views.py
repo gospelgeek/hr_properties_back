@@ -372,6 +372,40 @@ class PropertyRentalDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Response({'message': 'Rental deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
 
 
+class RentalRemoveDocumentView(APIView):
+    """Eliminar solo el documento de contrato de un rental mensual"""
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, property_id, rental_id):
+        get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
+        rental = get_object_or_404(Rental, pk=rental_id, property_id=property_id)
+
+        if rental.rental_type != 'monthly':
+            return Response({
+                'error': 'Only monthly rentals have contract documents to remove.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        monthly_record = rental.monthly_records.first()
+        if not monthly_record:
+            return Response({
+                'error': 'Monthly rental record not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if not monthly_record.url_files:
+            return Response({
+                'error': 'This rental has no document to remove.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        monthly_record.url_files.delete(save=False)
+        monthly_record.url_files = None
+        monthly_record.save(update_fields=['url_files'])
+
+        return Response({
+            'message': 'Rental document removed successfully',
+            'rental_id': rental.id
+        }, status=status.HTTP_200_OK)
+
+
 class RentalAddPaymentView(generics.CreateAPIView):
     """
     Vista para añadir un pago a un rental específico

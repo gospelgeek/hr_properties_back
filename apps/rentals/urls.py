@@ -4,7 +4,7 @@ from .views import (
     TenantViewSet, RentalViewSet,
     PropertyAddRentalView, PropertyRentalsListView, PropertyRentalDetailView,
     RentalAddPaymentView, RentalPaymentsListView, RentalPaymentDetailView,
-    RentalsDashboardStatsView
+  RentalsDashboardStatsView, RentalRemoveDocumentView
 )
 
 router = DefaultRouter()
@@ -21,6 +21,7 @@ urlpatterns = [
     path('properties/<int:property_id>/add_rental/', PropertyAddRentalView.as_view(), name='property-add-rental'),
     path('properties/<int:property_id>/rentals/', PropertyRentalsListView.as_view(), name='property-rentals-list'),
     path('properties/<int:property_id>/rentals/<int:rental_id>/', PropertyRentalDetailView.as_view(), name='property-rental-detail'),
+    path('properties/<int:property_id>/rentals/<int:rental_id>/remove_document/', RentalRemoveDocumentView.as_view(), name='rental-remove-document'),
     
     # Rutas para pagos de rentals específicos
     path('properties/<int:property_id>/rentals/<int:rental_id>/add_payment/', RentalAddPaymentView.as_view(), name='rental-add-payment'),

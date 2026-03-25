@@ -4,7 +4,7 @@ from .views import (
     PropertyViewSet, PropertyDetailsViewSet, PropertyMediaViewSet,
     PropertyLawViewSet, EnserViewSet, EnserInventoryViewSet, 
     PropertyAddRepairView, PropertyUploadMediaView, PropertyAddEnserView,
-    PropertyAddLawView, PropertyLawDetailView
+  PropertyAddLawView, PropertyLawDetailView, PropertyMediaDetailView
 )
 
 router = DefaultRouter()
@@ -22,6 +22,7 @@ urlpatterns = [
     path('properties/<int:property_id>/add_enser/', PropertyAddEnserView.as_view(), name='property-add-enser'),
     path('properties/<int:property_id>/add_law/', PropertyAddLawView.as_view(), name='property-add-law'),
     path('properties/<int:property_id>/laws/<int:law_id>/', PropertyLawDetailView.as_view(), name='property-law-detail'),
+    path('properties/<int:property_id>/media/<int:media_id>/', PropertyMediaDetailView.as_view(), name='property-media-detail'),
 ]
 
 '''

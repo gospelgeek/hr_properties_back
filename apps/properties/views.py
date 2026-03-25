@@ -384,6 +384,43 @@ class PropertyViewSet(viewsets.ModelViewSet):
         serializer = PropertyLawSerializer(property_laws, many=True, context={'request': request})
         return Response(serializer.data)
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    def set_main_image(self, request, pk=None):
+        """Asignar como imagen principal una multimedia existente de la propiedad"""
+        property_instance = self.get_object()
+        media_id = request.data.get('media_id')
+
+        if not media_id:
+            return Response({
+                'error': 'media_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        media = get_object_or_404(
+            PropertyMedia,
+            pk=media_id,
+            property=property_instance
+        )
+
+        if media.media_type != 'image':
+            return Response({
+                'error': 'Only media_type=image can be set as main image'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Guardar la misma referencia del archivo de multimedia como imagen principal
+        property_instance.image_url = media.url.name
+        property_instance.save(update_fields=['image_url', 'updated_at'])
+
+        image_url = property_instance.image_url.url if property_instance.image_url else None
+        if image_url and request:
+            image_url = request.build_absolute_uri(image_url)
+
+        return Response({
+            'message': 'Main image updated successfully',
+            'property_id': property_instance.id,
+            'media_id': media.id,
+            'image_url': image_url
+        }, status=status.HTTP_200_OK)
+
 class PropertyDetailsViewSet(viewsets.ModelViewSet):
     queryset = PropertyDetails.objects.all()
     serializer_class = PropertyDetailsSerializer
@@ -504,10 +541,23 @@ class PropertyAddLawView(generics.CreateAPIView):
         print("DEBUG - request.FILES:", request.FILES)
         print("DEBUG - request.data:", request.data)
         
-        # Mapear el campo 'media' a 'url' si viene con ese nombre
-        data = request.data.copy()
-        if 'media' in request.FILES and 'url' not in request.FILES:
-            data['url'] = request.FILES['media']
+        # Construir payload sin copiar request.data (evita errores con archivos temporales)
+        allowed_fields = ['entity_name', 'legal_number', 'original_amount', 'is_paid']
+        data = {}
+
+        for field in allowed_fields:
+            if field in request.data:
+                value = request.data.get(field)
+                # Normalizar strings vacios/null para campos opcionales
+                if value in ['', 'null', 'None']:
+                    value = None
+                data[field] = value
+
+        # Aceptar archivo en 'url' o en 'media' (compatibilidad frontend)
+        if 'url' in request.FILES:
+            data['url'] = request.FILES.get('url')
+        elif 'media' in request.FILES:
+            data['url'] = request.FILES.get('media')
         
         serializer = self.get_serializer(data=data)
         if serializer.is_valid():
@@ -552,10 +602,23 @@ class PropertyLawDetailView(generics.RetrieveUpdateDestroyAPIView):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         
-        # Mapear 'media' a 'url' si viene con ese nombre
-        data = request.data.copy()
-        if 'media' in request.FILES and 'url' not in request.FILES:
-            data['url'] = request.FILES['media']
+        # Construir payload sin copiar request.data (evita errores con archivos temporales)
+        allowed_fields = ['entity_name', 'legal_number', 'original_amount', 'is_paid']
+        data = {}
+
+        for field in allowed_fields:
+            if field in request.data:
+                value = request.data.get(field)
+                # Normalizar strings vacios/null para campos opcionales
+                if value in ['', 'null', 'None']:
+                    value = None
+                data[field] = value
+
+        # Aceptar archivo en 'url' o en 'media' (compatibilidad frontend)
+        if 'url' in request.FILES:
+            data['url'] = request.FILES.get('url')
+        elif 'media' in request.FILES:
+            data['url'] = request.FILES.get('media')
         
         serializer = PropertyLawCreateSerializer(instance, data=data, partial=partial)
         if serializer.is_valid():
@@ -567,8 +630,35 @@ class PropertyLawDetailView(generics.RetrieveUpdateDestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         """Eliminar una PropertyLaw"""
         instance = self.get_object()
+        if instance.url:
+            instance.url.delete(save=False)
         instance.delete()
         return Response({'message': 'PropertyLaw deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+
+class PropertyMediaDetailView(generics.DestroyAPIView):
+    """Vista para eliminar una multimedia específica de una propiedad"""
+    serializer_class = PropertyMediaSerializer
+    permission_classes = [IsAdminUser]
+
+    def get_queryset(self):
+        property_id = self.kwargs.get('property_id')
+        get_object_or_404(Property, pk=property_id, is_deleted__isnull=True)
+        return PropertyMedia.objects.filter(property_id=property_id)
+
+    def get_object(self):
+        media_id = self.kwargs.get('media_id')
+        return get_object_or_404(self.get_queryset(), pk=media_id)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        # Borrar primero el archivo físico y luego el registro en DB
+        if instance.url:
+            instance.url.delete(save=False)
+
+        instance.delete()
+        return Response({'message': 'Media deleted successfully'}, status=status.HTTP_200_OK)
 
 
 class PropertyUploadMediaView(generics.CreateAPIView):
