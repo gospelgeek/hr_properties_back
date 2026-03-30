@@ -104,7 +104,7 @@ class RentalDetailSerializer(serializers.ModelSerializer):
         model = Rental
         fields = [
             'id', 'property', 'property_name', 'property_address', 'tenant', 'rental_type',
-            'check_in', 'check_out', 'amount', 'people_count', 'notes',
+            'check_in', 'check_out', 'amount', 'total_amount', 'people_count', 'notes',
             'status', 'created_at', 'updated_at', 'monthly_records',
             'airbnb_records', 'payments'
         ]
