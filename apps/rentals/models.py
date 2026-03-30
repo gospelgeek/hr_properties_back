@@ -89,6 +89,13 @@ class Rental(models.Model):
         validators=[MinValueValidator(0)],
         verbose_name='Amount'
     )
+    total_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name='Total Amount',
+        null=True,
+        blank=True
+    )
     people_count = models.IntegerField(
         validators=[MinValueValidator(1)],
         verbose_name='People Count',

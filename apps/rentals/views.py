@@ -3,7 +3,7 @@ from rest_framework import viewsets, generics, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.views import APIView
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from datetime import timedelta
 from django.utils import timezone
 
@@ -214,9 +214,13 @@ class RentalViewSet(viewsets.ModelViewSet):
         # Obtener pagos del rental
         payments = RentalPayment.objects.filter(rental=rental).order_by('-date')
         
-        # Calcular total pagado
-        from django.db.models import Sum
+        # Calcular estado de pago usando total_amount cuando exista
         total_paid = payments.aggregate(total=Sum('amount'))['total'] or 0
+        expected_total = rental.total_amount if rental.total_amount is not None else rental.amount
+        pending = expected_total - total_paid
+        if pending < 0:
+            pending = 0
+        is_fully_paid = total_paid >= expected_total
         
         # Serializar
         payments_serializer = RentalPaymentSerializer(payments, many=True, context={'request': request})
@@ -225,6 +229,9 @@ class RentalViewSet(viewsets.ModelViewSet):
         return Response({
             'count': payments.count(),
             'total_paid': float(total_paid),
+            'expected_total': float(expected_total),
+            'pending': float(pending),
+            'is_fully_paid': is_fully_paid,
             'rental': rental_serializer.data,
             'payments': payments_serializer.data
         })
@@ -432,8 +439,27 @@ class RentalAddPaymentView(generics.CreateAPIView):
         )
         
         if serializer.is_valid():
+            expected_total = rental_instance.total_amount if rental_instance.total_amount is not None else rental_instance.amount
+            total_paid = rental_instance.payments.aggregate(total=Sum('amount'))['total'] or 0
+            new_amount = serializer.validated_data['amount']
+
+            if total_paid + new_amount > expected_total:
+                return Response({
+                    'error': 'Payment exceeds the rental expected amount',
+                    'expected_total': expected_total,
+                    'already_paid': total_paid,
+                    'pending': expected_total - total_paid,
+                    'attempted': new_amount
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             payment = serializer.save(rental=rental_instance)
             response_serializer = RentalPaymentSerializer(payment, context={'request': request})
+
+            new_total_paid = total_paid + new_amount
+            new_pending = expected_total - new_total_paid
+            if new_pending < 0:
+                new_pending = 0
+            is_fully_paid = new_total_paid >= expected_total
             
             # Mensaje especial para Airbnb
             if rental_instance.rental_type == 'airbnb':
@@ -443,7 +469,13 @@ class RentalAddPaymentView(generics.CreateAPIView):
             
             return Response({
                 'message': message,
-                'payment': response_serializer.data
+                'payment': response_serializer.data,
+                'rental_status': {
+                    'expected_total': expected_total,
+                    'total_paid': new_total_paid,
+                    'pending': new_pending,
+                    'is_fully_paid': is_fully_paid
+                }
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
