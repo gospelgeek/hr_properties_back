@@ -4,8 +4,10 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from django.db.models import Count, Q, Sum
+import calendar
 from datetime import timedelta
 from django.utils import timezone
+from decimal import Decimal
 
 from apps.users.permissions import IsAdminUser, IsAdminOrReadOnlyClient
 from .models import Tenant, Rental, RentalPayment, MonthlyRental, AirbnbRental
@@ -48,6 +50,83 @@ class RentalViewSet(viewsets.ModelViewSet):
     """
     queryset = Rental.objects.all()
     permission_classes = [IsAdminOrReadOnlyClient]
+
+    @staticmethod
+    def _calculate_payment_status(rental, total_paid, expected_total):
+        """Calcula el estado de pago a la fecha para mostrar si va al día."""
+        today = timezone.now().date()
+        total_paid = Decimal(total_paid or 0)
+        expected_total = Decimal(expected_total or 0)
+        monthly_amount = Decimal(rental.amount or 0)
+
+        contract_months = None
+        if rental.check_in and rental.check_out and rental.check_out > rental.check_in:
+            contract_months = (rental.check_out.year - rental.check_in.year) * 12 + (rental.check_out.month - rental.check_in.month)
+            if rental.check_out.day > rental.check_in.day:
+                contract_months += 1
+            contract_months = max(contract_months, 1)
+
+        installments_due = 0
+        expected_to_date = Decimal('0')
+
+        if rental.rental_type == 'monthly' and rental.check_in and monthly_amount > 0:
+            if today >= rental.check_in:
+                start_date = rental.check_in
+                anchor_day = start_date.day
+
+                months_elapsed = (today.year - start_date.year) * 12 + (today.month - start_date.month)
+                installments_due = 0
+
+                for month_offset in range(months_elapsed + 1):
+                    target_month_index = (start_date.month - 1) + month_offset
+                    target_year = start_date.year + (target_month_index // 12)
+                    target_month = (target_month_index % 12) + 1
+                    last_day_of_target_month = calendar.monthrange(target_year, target_month)[1]
+                    due_day = min(anchor_day, last_day_of_target_month)
+                    due_date = start_date.replace(year=target_year, month=target_month, day=due_day)
+
+                    if due_date <= today:
+                        installments_due += 1
+
+                if contract_months is not None:
+                    installments_due = min(installments_due, contract_months)
+                installments_due = max(installments_due, 0)
+                expected_to_date = monthly_amount * installments_due
+            expected_to_date = min(expected_to_date, expected_total)
+        elif rental.check_in and today >= rental.check_in:
+            expected_to_date = expected_total
+
+        overdue_amount = expected_to_date - total_paid
+        if overdue_amount < 0:
+            overdue_amount = Decimal('0')
+
+        is_fully_paid = total_paid >= expected_total
+        is_up_to_date = total_paid >= expected_to_date
+
+        if is_fully_paid:
+            status_label = 'fully_paid'
+        elif is_up_to_date:
+            status_label = 'up_to_date'
+        elif expected_to_date > 0:
+            status_label = 'overdue'
+        else:
+            status_label = 'not_due_yet'
+
+        installments_paid_equivalent = Decimal('0')
+        if monthly_amount > 0:
+            installments_paid_equivalent = total_paid / monthly_amount
+        return {
+            'today': today.isoformat(),
+            'monthly_amount': float(monthly_amount),
+            'contract_months': contract_months,
+            'installments_due': installments_due,
+            'installments_paid_equivalent': float(installments_paid_equivalent),
+            'expected_to_date': float(expected_to_date),
+            'overdue_amount': float(overdue_amount),
+            'is_up_to_date': is_up_to_date,
+            'status_label': status_label,
+        }
+        
     
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -221,6 +300,7 @@ class RentalViewSet(viewsets.ModelViewSet):
         if pending < 0:
             pending = 0
         is_fully_paid = total_paid >= expected_total
+        payment_status = self._calculate_payment_status(rental, total_paid, expected_total)
         
         # Serializar
         payments_serializer = RentalPaymentSerializer(payments, many=True, context={'request': request})
@@ -232,6 +312,7 @@ class RentalViewSet(viewsets.ModelViewSet):
             'expected_total': float(expected_total),
             'pending': float(pending),
             'is_fully_paid': is_fully_paid,
+            'payment_status': payment_status,
             'rental': rental_serializer.data,
             'payments': payments_serializer.data
         })
