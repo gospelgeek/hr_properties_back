@@ -26,5 +26,6 @@ urlpatterns = [
     path('api/users/', include('apps.users.urls')),
     path('api/', include('apps.finance.urls')),
     path('api/', include('apps.emails.urls')),
+    path('api/', include('apps.vehicles.urls')),
     path('media/<path:path>', protected_media, name='protected-media'),
 ]
