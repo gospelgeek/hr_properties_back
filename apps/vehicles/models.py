@@ -30,16 +30,34 @@ def vehicle_payment_voucher_upload_to(instance, filename):
     return f'vehicle_{vehicle_id}/payments/{safe_filename}'
 
 
+def _resolve_vehicle_id(instance):
+    """Resuelve el ID del vehículo para modelos relacionados con Vehicle."""
+    if getattr(instance, 'vehicle_id', None):
+        return instance.vehicle_id
+
+    vehicle = getattr(instance, 'vehicle', None)
+    if vehicle and getattr(vehicle, 'id', None):
+        return vehicle.id
+
+    if getattr(instance, 'id', None):
+        return instance.id
+
+    return None
+
+
 def vehicle_photo_upload_to(instance, filename):
     """Organiza fotos de vehículos en carpetas por ID de vehículo"""
     ext = os.path.splitext(filename)[1]
-    vehicle_id = instance.id if instance.id else 'temp'
+    vehicle_id = _resolve_vehicle_id(instance) or 'temp'
     return f'vehicle_{vehicle_id}/photos/photo{ext}'
+
 
 def vehicle_doc_upload_to(instance, filename):
     """Organiza documentos de vehículos en carpetas por ID de vehículo"""
     safe_filename = filename.replace(' ', '_')
-    return f'vehicle_{instance.id}/docs/{safe_filename}'
+
+    vehicle_id = _resolve_vehicle_id(instance) or 'temp'
+    return f'vehicle_{vehicle_id}/docs/{safe_filename}'
 
 class Vehicle(models.Model):
 
@@ -114,6 +132,7 @@ class VehicleRepair(models.Model):
     id = models.AutoField(primary_key=True)
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='repairs')
     date = models.DateField()
+    observation = models.CharField(max_length=255, blank=True, null=True)
     description = models.TextField()
     cost = models.DecimalField(max_digits=10, decimal_places=2)
 

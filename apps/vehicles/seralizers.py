@@ -52,14 +52,14 @@ class ResponsibleCreateSerializer(serializers.ModelSerializer):
 class VehicleRepairSerializer(serializers.ModelSerializer):
     class Meta:
         model = VehicleRepair
-        fields = ['id', 'vehicle', 'date', 'description', 'cost']
+        fields = ['id', 'vehicle', 'date','observation' ,'description', 'cost']
         read_only_fields = ['id']
 
 
 class VehicleRepairCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = VehicleRepair
-        fields = ['date', 'description', 'cost']
+        fields = ['date', 'observation', 'description', 'cost']
 
 
 class ObligationVehicleTypeSerializer(serializers.ModelSerializer):
