@@ -68,14 +68,16 @@ class Vehicle(models.Model):
         ('water', 'Water'),
     ]
     id = models.AutoField(primary_key=True)
-    owner = models.CharField(max_length=255)  # a nombre de quien
+    driver = models.CharField(max_length=255)  # a nombre de quien
     type = models.CharField(max_length=30, choices=TYPE_CHOICES)
+    vin_number = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    license_plate = models.CharField(max_length=20, unique=True, null=True, blank=True)
     purchase_date = models.DateField()
     purchase_price = models.DecimalField(max_digits=12, decimal_places=2)
     photo = models.ImageField(upload_to=vehicle_photo_upload_to, blank=True, null=True)
     brand = models.CharField(max_length=100)
     model = models.CharField(max_length=100)
-    responsible = models.ManyToManyField('Responsible', related_name='vehicles', blank=True)
+    responsible = models.ManyToManyField('Responsible', related_name='vehicles', blank=True, null=True)
 
 
 class VehicleDocument(models.Model):

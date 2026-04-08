@@ -143,8 +143,10 @@ class VehicleSerializer(serializers.ModelSerializer):
         model = Vehicle
         fields = [
             'id',
-            'owner',
+            'driver',
             'type',
+            'vin_number',
+            'license_plate',
             'purchase_date',
             'purchase_price',
             'photo',
