@@ -64,6 +64,8 @@ class Vehicle(models.Model):
     TYPE_CHOICES = [
         ('commercial', 'Commercial'),
         ('sport', 'Sport'),
+        ('personal', 'Personal'),
+        ('non_permanent_use', 'Non Permanent Use'),
         ('permanent_use', 'Permanent Use'),
         ('water', 'Water'),
     ]
@@ -108,6 +110,7 @@ class ObligationVehicle(models.Model):
         ('bimonthly', 'Bimonthly'),
         ('quarterly', 'Quarterly'),
         ('biannual', 'Biannual'),
+        ('semiannual', 'Semiannual'),
         ('annual', 'Annual'),
         ('one_time', 'One Time'),
         ('weekly', 'Weekly'),
