@@ -160,3 +160,47 @@ class VehicleSerializer(serializers.ModelSerializer):
             'obligations',
         ]
         read_only_fields = ['id']
+        extra_kwargs = {
+            'license_plate': {
+                'validators': [],
+            },
+            'vin_number': {
+                'validators': [],
+            },
+        }
+
+    def validate_license_plate(self, value):
+        if not value:
+            return value
+
+        qs = Vehicle.objects.filter(license_plate__iexact=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+
+        if qs.exists():
+            raise serializers.ValidationError(
+                {
+                    'message': 'vehicle with this license plate already exists.',
+                    'code': 'duplicate_license_plate',
+                }
+            )
+
+        return value
+
+    def validate_vin_number(self, value):
+        if not value:
+            return value
+
+        qs = Vehicle.objects.filter(vin_number__iexact=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+
+        if qs.exists():
+            raise serializers.ValidationError(
+                {
+                    'message': 'vehicle with this VIN number already exists.',
+                    'code': 'duplicate_vin_number',
+                }
+            )
+
+        return value
