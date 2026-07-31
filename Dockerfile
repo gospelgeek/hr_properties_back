@@ -32,7 +32,7 @@ EXPOSE 8000
 
 # No /health endpoint found in urls.py — use TCP check on port 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -sf http://127.0.0.1:8000/admin/ || exit 1
+    CMD curl -sf -H "Host: server-hr-properties.gospelgeek.com.co" http://127.0.0.1:8000/admin/ || exit 1
 
 # Migrate + collectstatic + start gunicorn.
 # exec ensures gunicorn becomes PID 1 and receives SIGTERM for graceful shutdown.
