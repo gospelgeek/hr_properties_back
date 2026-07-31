@@ -1,0 +1,57 @@
+# Dependencies
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Docker
+Dockerfile
+docker-compose*.yml
+
+# Git
+.git/
+.gitignore
+
+# Database
+db.sqlite3
+db.sqlite3-journal
+
+# Media & static (generated at runtime, mounted as volumes)
+media/
+staticfiles/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# CI/CD
+.github/
+
+# Documentation
+*.md
+EXPLICACION_VISUAL_ALERTAS.md
+GUIA_ALERTAS_AUTOMATICAS.md
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Hermes / tooling
+.hermes/
+graphify-out/
+
+# Windows scripts
+*.bat
