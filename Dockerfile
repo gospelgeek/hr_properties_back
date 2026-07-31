@@ -11,8 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Create non-root user
-RUN groupadd -r app && useradd -r -g app -u 1001 app
+# Create non-root user with home directory
+RUN groupadd -r app && useradd -r -g app -u 1001 -m -d /home/app app
 
 # Copy dependency manifest first for layer caching
 COPY --chown=app:app requirements.txt ./
